@@ -632,48 +632,62 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
     verify_url = f"{frontend_url}/verify/{row['verify_token']}" if frontend_url else row["verify_token"]
 
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=2*cm, rightMargin=2*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=1.5*cm, rightMargin=1.5*cm, topMargin=1*cm, bottomMargin=1*cm)
 
     styles = getSampleStyleSheet()
-    header_big = ParagraphStyle("hb", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=14, alignment=TA_CENTER, leading=16)
-    header_med = ParagraphStyle("hm", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=13, alignment=TA_CENTER, leading=15)
-    header_sub = ParagraphStyle("hs", parent=styles["Normal"], fontName="Helvetica", fontSize=10, alignment=TA_CENTER, leading=12)
-    title_style = ParagraphStyle("ts", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=12, alignment=TA_CENTER, leading=14)
-    body = ParagraphStyle("b", parent=styles["Normal"], fontName="Helvetica", fontSize=10, leading=13)
-    body_b = ParagraphStyle("bb", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10, leading=13)
-    small = ParagraphStyle("sm", parent=styles["Normal"], fontName="Helvetica", fontSize=8, leading=10)
+    header_big = ParagraphStyle("hb", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=13, alignment=TA_CENTER, leading=15)
+    header_med = ParagraphStyle("hm", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=12, alignment=TA_CENTER, leading=14)
+    header_sub = ParagraphStyle("hs", parent=styles["Normal"], fontName="Helvetica", fontSize=9, alignment=TA_CENTER, leading=11)
+    title_style = ParagraphStyle("ts", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=11, alignment=TA_CENTER, leading=13, underlineWidth=1)
+    body = ParagraphStyle("b", parent=styles["Normal"], fontName="Helvetica", fontSize=9, leading=11)
+    body_b = ParagraphStyle("bb", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=9, leading=11)
+    small = ParagraphStyle("sm", parent=styles["Normal"], fontName="Helvetica", fontSize=7, leading=9)
 
     story = []
-    # KOP SURAT
-    story.append(Paragraph("PEMERINTAH KOTA SEMARANG", header_big))
-    story.append(Paragraph("DINAS KESEHATAN", header_big))
-    story.append(Paragraph("UPTD PUSKESMAS BUGANGAN", header_med))
-    story.append(Paragraph("Jl. Musi Raya No. 22 Telp. 3546061 Semarang", header_sub))
-    story.append(Spacer(1, 4))
+    # KOP SURAT dengan logo Kota Semarang di kiri
+    logo_path = ROOT_DIR / "assets" / "logo_semarang.png"
+    kop_text = [
+        Paragraph("PEMERINTAH KOTA SEMARANG", header_big),
+        Paragraph("DINAS KESEHATAN", header_big),
+        Paragraph("UPTD PUSKESMAS BUGANGAN", header_med),
+        Paragraph("Jl. Musi Raya No. 22 Telp. 3546061 Semarang", header_sub),
+    ]
+    if logo_path.exists():
+        logo_img = RLImage(str(logo_path), width=2.2*cm, height=2.6*cm)
+        kop_tbl = Table([[logo_img, kop_text]], colWidths=[2.6*cm, 15.4*cm])
+        kop_tbl.setStyle(TableStyle([
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ("ALIGN", (0,0), (0,0), "CENTER"),
+        ]))
+        story.append(kop_tbl)
+    else:
+        for p in kop_text:
+            story.append(p)
+    story.append(Spacer(1, 2))
     # Double horizontal line
-    line_tbl = Table([[""]], colWidths=[17*cm])
+    line_tbl = Table([[""]], colWidths=[18*cm])
     line_tbl.setStyle(TableStyle([
         ("LINEABOVE", (0,0), (-1,-1), 1.5, colors.black),
         ("LINEBELOW", (0,0), (-1,-1), 0.5, colors.black),
         ("TOPPADDING", (0,0), (-1,-1), 2),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 2),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 1),
     ]))
     story.append(line_tbl)
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 6))
 
     # Date right
     today_str = _id_date(row.get("approved_at", row["created_at"])[:10]) if row.get("approved_at") else _id_date(row["created_at"][:10])
     addr_tbl = Table([[
         Paragraph(f"Kepada Yth.<br/>Kepala UPTD Puskesmas Bugangan<br/>di Semarang", body),
         Paragraph(f"Semarang, {today_str}", body),
-    ]], colWidths=[10*cm, 7*cm])
+    ]], colWidths=[10*cm, 8*cm])
     addr_tbl.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP"), ("ALIGN", (1,0), (1,0), "RIGHT")]))
     story.append(addr_tbl)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 4))
 
     story.append(Paragraph("FORMULIR PERMINTAAN DAN PEMBERIAN CUTI", title_style))
     story.append(Paragraph(f"No. {row['form_no']}", ParagraphStyle("no", parent=body, alignment=TA_CENTER)))
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 6))
 
     # Data Pegawai
     story.append(Paragraph("<b>I. DATA PEGAWAI</b>", body))
@@ -684,10 +698,10 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         ["Masa Kerja", ":", f"{pegawai['masa_kerja_tahun']:02d} th {pegawai['masa_kerja_bulan']:02d} bln" if pegawai else ""],
         ["Unit Kerja", ":", pegawai["unit_kerja"] if pegawai else "UPTD Puskesmas Bugangan"],
     ]
-    t = Table(data_rows, colWidths=[3.5*cm, 0.5*cm, 13*cm])
-    t.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 10), ("VALIGN", (0,0), (-1,-1), "TOP"), ("BOTTOMPADDING", (0,0), (-1,-1), 2)]))
+    t = Table(data_rows, colWidths=[3*cm, 0.4*cm, 14.6*cm])
+    t.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 9), ("VALIGN", (0,0), (-1,-1), "TOP"), ("BOTTOMPADDING", (0,0), (-1,-1), 1), ("TOPPADDING", (0,0), (-1,-1), 1)]))
     story.append(t)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 4))
 
     # Jenis Cuti
     story.append(Paragraph("<b>II. JENIS CUTI YANG DIAMBIL</b>", body))
@@ -700,22 +714,22 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
             f"{i+1}.", LEAVE_TYPE_LABELS[left], "[√]" if row["jenis_cuti"] == left else "[ ]",
             f"{i+2}.", LEAVE_TYPE_LABELS[right], "[√]" if row["jenis_cuti"] == right else "[ ]",
         ])
-    t2 = Table(cuti_rows, colWidths=[0.7*cm, 6.8*cm, 1*cm, 0.7*cm, 6.8*cm, 1*cm])
-    t2.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 10), ("BOTTOMPADDING", (0,0), (-1,-1), 2)]))
+    t2 = Table(cuti_rows, colWidths=[0.6*cm, 7.4*cm, 1*cm, 0.6*cm, 7.4*cm, 1*cm])
+    t2.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 9), ("BOTTOMPADDING", (0,0), (-1,-1), 1), ("TOPPADDING", (0,0), (-1,-1), 1)]))
     story.append(t2)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 4))
 
     # Alasan
     story.append(Paragraph("<b>III. ALASAN CUTI</b>", body))
     story.append(Paragraph(row["alasan"], body))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 4))
 
     # Lama
     story.append(Paragraph("<b>IV. LAMANYA CUTI</b>", body))
     story.append(Paragraph(
         f"Selama <b>{row['lamanya']}</b> (hari) mulai tanggal <b>{_id_date(row['tanggal_mulai'])}</b> s/d <b>{_id_date(row['tanggal_selesai'])}</b>",
         body))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 4))
 
     # Catatan cuti (balances)
     story.append(Paragraph("<b>V. CATATAN CUTI</b>", body))
@@ -725,18 +739,21 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         ["Cuti Besar", str(bal.get("cuti_besar", 0)), "Cuti Karena Alasan Penting", str(bal.get("cuti_alasan_penting", 0))],
         ["Cuti Sakit", str(bal.get("cuti_sakit", 0)), "Cuti di Luar Tanggungan Negara", str(bal.get("cuti_luar_tanggungan", 0))],
     ]
-    t3 = Table([["Jenis Cuti", "Sisa", "Jenis Cuti", "Sisa"]] + cat, colWidths=[5*cm, 2*cm, 6*cm, 2*cm])
+    t3 = Table([["Jenis Cuti", "Sisa", "Jenis Cuti", "Sisa"]] + cat, colWidths=[5.5*cm, 2*cm, 7.5*cm, 2*cm])
     t3.setStyle(TableStyle([
         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("FONTSIZE", (0,0), (-1,-1), 9),
+        ("FONTSIZE", (0,0), (-1,-1), 8),
         ("GRID", (0,0), (-1,-1), 0.5, colors.black),
         ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#EAF4F0")),
         ("ALIGN", (1,1), (1,-1), "CENTER"),
         ("ALIGN", (3,1), (3,-1), "CENTER"),
-        ("PADDING", (0,0), (-1,-1), 4),
+        ("LEFTPADDING", (0,0), (-1,-1), 3),
+        ("RIGHTPADDING", (0,0), (-1,-1), 3),
+        ("TOPPADDING", (0,0), (-1,-1), 2),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 2),
     ]))
     story.append(t3)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 4))
 
     # Alamat selama cuti
     story.append(Paragraph("<b>VI. ALAMAT SELAMA MENJALANKAN CUTI</b>", body))
@@ -744,32 +761,27 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         ["Alamat", ":", row["alamat_selama_cuti"]],
         ["Telp", ":", row["telepon_selama_cuti"]],
     ]
-    t4 = Table(addr_rows, colWidths=[3.5*cm, 0.5*cm, 13*cm])
-    t4.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 10), ("VALIGN", (0,0), (-1,-1), "TOP")]))
+    t4 = Table(addr_rows, colWidths=[3*cm, 0.4*cm, 14.6*cm])
+    t4.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 9), ("VALIGN", (0,0), (-1,-1), "TOP"), ("BOTTOMPADDING", (0,0), (-1,-1), 1), ("TOPPADDING", (0,0), (-1,-1), 1)]))
     story.append(t4)
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 6))
 
     # Signature blocks — pakai QR code (barcode) untuk pegawai & kepala
-    # QR code mengarah ke halaman verifikasi publik
     peg_qr = _build_qr(verify_url)
     kep_qr = _build_qr(verify_url)
 
-    # Pegawai (right aligned)
+    # Pegawai TTD (kanan)
     peg_block = [
         Paragraph("Hormat saya,", body),
-        Spacer(1, 4),
-        RLImage(peg_qr, width=2.2*cm, height=2.2*cm),
-        Paragraph("Scan untuk verifikasi", small),
-        Spacer(1, 2),
+        RLImage(peg_qr, width=1.8*cm, height=1.8*cm),
         Paragraph(f"<b><u>{pegawai['name'] if pegawai else row['user_name']}</u></b>", body),
         Paragraph(
             f"NIP: {pegawai['nip'] if pegawai and pegawai.get('is_asn') else 'Non ASN'}", small),
     ]
-
-    sig_tbl = Table([["", peg_block]], colWidths=[9*cm, 8*cm])
+    sig_tbl = Table([["", peg_block]], colWidths=[10*cm, 8*cm])
     sig_tbl.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP")]))
     story.append(sig_tbl)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 4))
 
     # Pertimbangan & decision
     story.append(Paragraph("<b>VII. PERTIMBANGAN KEPALA UPTD PUSKESMAS BUGANGAN</b>", body))
@@ -780,34 +792,30 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         ("tidak_disetujui", "TIDAK DISETUJUI"),
     ]
     dec_cells = [["[√] " + lbl if row["status"] == key else "[ ] " + lbl for key, lbl in decisions]]
-    t5 = Table(dec_cells, colWidths=[4.25*cm]*4)
-    t5.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 10), ("ALIGN", (0,0), (-1,-1), "CENTER")]))
+    t5 = Table(dec_cells, colWidths=[4.5*cm]*4)
+    t5.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"), ("FONTSIZE", (0,0), (-1,-1), 9), ("ALIGN", (0,0), (-1,-1), "CENTER"), ("TOPPADDING", (0,0), (-1,-1), 2), ("BOTTOMPADDING", (0,0), (-1,-1), 2)]))
     story.append(t5)
     if row.get("pesan_kepala"):
-        story.append(Spacer(1, 4))
         story.append(Paragraph(f"<b>Catatan Kepala:</b> {row['pesan_kepala']}", body))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 4))
 
-    # Kepala signature — pakai QR code (barcode) bukan gambar TTD
+    # Kepala TTD (kanan)
     kep_block = [
         Paragraph(f"Semarang, {today_str}", body),
         Paragraph("Kepala UPTD Puskesmas Bugangan", body),
-        Spacer(1, 4),
-        RLImage(kep_qr, width=2.2*cm, height=2.2*cm),
-        Paragraph("Scan untuk verifikasi", small),
-        Spacer(1, 2),
+        RLImage(kep_qr, width=1.8*cm, height=1.8*cm),
     ]
     kep_name = kepala["name"] if kepala else "____________________"
     kep_nip = kepala["nip"] if kepala and kepala.get("is_asn") else "Non ASN"
     kep_block.append(Paragraph(f"<b><u>{kep_name}</u></b>", body))
     kep_block.append(Paragraph(f"NIP: {kep_nip}", small))
 
-    sig_tbl2 = Table([["", kep_block]], colWidths=[9*cm, 8*cm])
+    sig_tbl2 = Table([["", kep_block]], colWidths=[10*cm, 8*cm])
     sig_tbl2.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP")]))
     story.append(sig_tbl2)
 
-    story.append(Spacer(1, 14))
-    story.append(Paragraph("<i>Catatan: N = Cuti tahun berjalan, N-1 = Sisa cuti 1 tahun sebelumnya, N-2 = Sisa cuti 2 tahun sebelumnya. Coret yang tidak perlu.</i>", small))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("<i>Catatan: N = Cuti tahun berjalan, N-1 = Sisa cuti 1 tahun sebelumnya, N-2 = Sisa cuti 2 tahun sebelumnya. Scan QR code untuk verifikasi keaslian dokumen.</i>", small))
 
     doc.build(story)
     buf.seek(0)
