@@ -170,6 +170,7 @@ class UserUpdate(BaseModel):
 
 
 class LeaveRequestCreate(BaseModel):
+    form_no: Optional[str] = None  # nomor surat manual; jika kosong/None akan di-generate otomatis
     jenis_cuti: Literal[
         "cuti_tahunan",
         "cuti_bersama",
@@ -409,10 +410,13 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
                 detail=f"Sisa {LEAVE_TYPE_LABELS[balance_key]} tidak mencukupi (sisa {current_balance} hari, butuh {days} hari)",
             )
 
-    # Generate next form number for the current year
+    # Generate next form number for the current year (or use manual input)
     year = datetime.now(timezone.utc).year
-    count = await db.leave_requests.count_documents({"year": year})
-    form_no = f"B/{count + 1:03d}/851/{datetime.now(timezone.utc).month:02d}/{year}"
+    if body.form_no and body.form_no.strip():
+        form_no = body.form_no.strip()
+    else:
+        count = await db.leave_requests.count_documents({"year": year})
+        form_no = f"B/{count + 1:03d}/851/{datetime.now(timezone.utc).month:02d}/{year}"
 
     doc = {
         "id": str(uuid.uuid4()),

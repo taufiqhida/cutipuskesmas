@@ -16,6 +16,7 @@ export default function AjukanCutiPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [jenis, setJenis] = useState("cuti_tahunan");
+  const [formNo, setFormNo] = useState("");
   const [alasan, setAlasan] = useState("");
   const [tanggalMulai, setTanggalMulai] = useState("");
   const [tanggalSelesai, setTanggalSelesai] = useState("");
@@ -34,6 +35,7 @@ export default function AjukanCutiPage() {
     setBusy(true);
     try {
       await api.post("/leave-requests", {
+        form_no: formNo,
         jenis_cuti: jenis,
         alasan,
         tanggal_mulai: tanggalMulai,
@@ -138,6 +140,25 @@ export default function AjukanCutiPage() {
             <div className="space-y-2 md:col-span-2">
               <Label>Alamat</Label>
               <Textarea data-testid="input-alamat-cuti" required rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Telepon</Label>
+              <Input data-testid="input-telp-cuti" required value={telepon} onChange={(e) => setTelepon(e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="outline" onClick={() => navigate(-1)}>Batal</Button>
+          <Button type="submit" disabled={busy} data-testid="submit-cuti-btn" className="bg-[#1A4331] hover:bg-[#133224]">
+            <Send className="w-4 h-4 mr-1" /> {busy ? "Mengirim..." : "Kirim Pengajuan"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+ut-alamat-cuti" required rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Telepon</Label>
