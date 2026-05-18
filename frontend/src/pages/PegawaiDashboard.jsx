@@ -4,12 +4,12 @@ import api, { API, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import StatusBadge from "@/components/StatusBadge";
+import EditRequestDialog from "@/components/EditRequestDialog";
 import { LEAVE_TYPE_LABELS, formatTanggalID } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
-import { FileText, Plus, CalendarDays, Wallet, Pencil, Check, X } from "lucide-react";
+import { FileText, Plus, CalendarDays, Wallet, Pencil, Trash2 } from "lucide-react";
 
 const BALANCE_LABELS = {
   cuti_tahunan: "Cuti Tahunan",
@@ -23,8 +23,7 @@ const BALANCE_LABELS = {
 export default function PegawaiDashboard() {
   const { user, setUser } = useAuth();
   const [rows, setRows] = useState([]);
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState("");
+  const [editing, setEditing] = useState(null);
 
   const refresh = async () => {
     const [me, lr] = await Promise.all([
@@ -42,16 +41,11 @@ export default function PegawaiDashboard() {
     window.open(`${API}/leave-requests/${id}/pdf?token=${encodeURIComponent(token)}`, "_blank");
   };
 
-  const startEdit = (r) => {
-    setEditingId(r.id);
-    setEditValue(r.form_no);
-  };
-  const cancelEdit = () => { setEditingId(null); setEditValue(""); };
-  const saveFormNo = async (id) => {
+  const cancelRequest = async (r) => {
+    if (!window.confirm(`Batalkan pengajuan ${r.form_no}?\n\nPengajuan akan dihapus permanen.`)) return;
     try {
-      await api.put(`/leave-requests/${id}/form-no`, { form_no: editValue });
-      toast.success("Nomor surat diperbarui");
-      cancelEdit();
+      await api.delete(`/leave-requests/${r.id}`);
+      toast.success("Pengajuan dibatalkan");
       await refresh();
     } catch (err) {
       toast.error(formatApiError(err?.response?.data?.detail));
@@ -133,47 +127,30 @@ export default function PegawaiDashboard() {
                 <TableHead>Lama</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Catatan Kepala</TableHead>
-                <TableHead className="text-right">PDF</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
                 <TableRow key={r.id} data-testid={`request-row-${r.id}`}>
-                  <TableCell className="font-mono text-xs">
-                    {editingId === r.id ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          className="h-7 text-xs font-mono w-44"
-                          data-testid={`edit-form-no-input-${r.id}`}
-                          autoFocus
-                        />
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-700" onClick={() => saveFormNo(r.id)} data-testid={`save-form-no-${r.id}`}>
-                          <Check className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-stone-500" onClick={cancelEdit}>
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 group">
-                        <span>{r.form_no}</span>
-                        {r.status === "menunggu" && (
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => startEdit(r)} data-testid={`edit-form-no-${r.id}`} title="Edit nomor surat">
-                            <Pencil className="w-3 h-3" />
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </TableCell>
+                  <TableCell className="font-mono text-xs">{r.form_no}</TableCell>
                   <TableCell>{LEAVE_TYPE_LABELS[r.jenis_cuti]}</TableCell>
                   <TableCell className="text-xs">{formatTanggalID(r.tanggal_mulai)} – {formatTanggalID(r.tanggal_selesai)}</TableCell>
                   <TableCell>{r.lamanya} hari</TableCell>
                   <TableCell><StatusBadge status={r.status} /></TableCell>
                   <TableCell className="text-xs text-stone-600 max-w-[200px] truncate">{r.pesan_kepala || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => openPdf(r.id)} data-testid={`pdf-btn-${r.id}`}>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {r.status === "menunggu" && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => setEditing(r)} data-testid={`edit-request-${r.id}`} title="Edit pengajuan">
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700" onClick={() => cancelRequest(r)} data-testid={`cancel-request-${r.id}`} title="Batalkan pengajuan">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => openPdf(r.id)} data-testid={`pdf-btn-${r.id}`} title="Lihat PDF">
                       <FileText className="w-4 h-4" />
                     </Button>
                   </TableCell>
@@ -188,6 +165,13 @@ export default function PegawaiDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      <EditRequestDialog
+        open={!!editing}
+        onOpenChange={(v) => !v && setEditing(null)}
+        request={editing}
+        onSaved={refresh}
+      />
     </div>
   );
 }

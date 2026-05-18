@@ -548,32 +548,97 @@ async def get_leave_request(req_id: str, user=Depends(get_current_user)):
     return row
 
 
-@api.put("/leave-requests/{req_id}/form-no")
-async def update_form_no(req_id: str, payload: dict, user=Depends(get_current_user)):
+class LeaveRequestUpdate(BaseModel):
+    """Edit pengajuan cuti (hanya boleh selagi status masih menunggu)."""
+    form_no: Optional[str] = None
+    jenis_cuti: Optional[Literal[
+        "cuti_tahunan", "cuti_bersama", "cuti_sakit",
+        "cuti_melahirkan", "cuti_alasan_penting", "cuti_luar_tanggungan",
+    ]] = None
+    alasan: Optional[str] = None
+    tanggal_mulai: Optional[str] = None
+    tanggal_selesai: Optional[str] = None
+    alamat_selama_cuti: Optional[str] = None
+    telepon_selama_cuti: Optional[str] = None
+
+
+@api.put("/leave-requests/{req_id}")
+async def update_leave_request(req_id: str, body: LeaveRequestUpdate, user=Depends(get_current_user)):
     row = await db.leave_requests.find_one({"id": req_id})
     if not row:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
-    # Pegawai hanya boleh edit punyanya sendiri; admin & kepala boleh semua
+    # Pegawai hanya boleh edit punyanya sendiri; admin/kepala boleh semua
     if user["role"] == "pegawai" and row["user_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Akses ditolak")
-    # Hanya boleh edit kalau status masih "menunggu" (belum diverifikasi Kepala)
+    # Hanya boleh diubah selama status masih menunggu
     if row["status"] != "menunggu":
         raise HTTPException(
             status_code=400,
-            detail="Nomor surat tidak bisa diubah setelah pengajuan diverifikasi Kepala Puskesmas",
+            detail="Pengajuan tidak bisa diubah setelah diverifikasi Kepala Puskesmas",
         )
-    new_form_no = (payload.get("form_no") or "").strip()
-    if not new_form_no:
-        raise HTTPException(status_code=400, detail="Nomor surat tidak boleh kosong")
-    # Cek keunikan — tidak boleh sama dengan pengajuan lain
-    existing = await db.leave_requests.find_one(
-        {"form_no": new_form_no, "id": {"$ne": req_id}}
-    )
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Nomor surat '{new_form_no}' sudah digunakan pengajuan lain")
-    await db.leave_requests.update_one({"id": req_id}, {"$set": {"form_no": new_form_no}})
+
+    update = body.model_dump(exclude_none=True)
+
+    # Validasi nomor surat (jika diubah)
+    if "form_no" in update:
+        new_form_no = update["form_no"].strip()
+        if not new_form_no:
+            raise HTTPException(status_code=400, detail="Nomor surat tidak boleh kosong")
+        if new_form_no != row["form_no"]:
+            existing = await db.leave_requests.find_one(
+                {"form_no": new_form_no, "id": {"$ne": req_id}}
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Nomor surat '{new_form_no}' sudah digunakan pengajuan lain")
+        update["form_no"] = new_form_no
+
+    # Validasi tanggal & hitung ulang lamanya kalau ada perubahan tanggal
+    new_start = update.get("tanggal_mulai", row["tanggal_mulai"])
+    new_end = update.get("tanggal_selesai", row["tanggal_selesai"])
+    if "tanggal_mulai" in update or "tanggal_selesai" in update:
+        days = _calc_days(new_start, new_end)
+        update["lamanya"] = days
+
+    # Validasi saldo cuti kalau jenis_cuti atau lamanya berubah
+    new_jenis = update.get("jenis_cuti", row["jenis_cuti"])
+    new_lama = update.get("lamanya", row["lamanya"])
+    if new_jenis != row["jenis_cuti"] or new_lama != row["lamanya"]:
+        balance_key = new_jenis if new_jenis != "cuti_bersama" else "cuti_tahunan"
+        if balance_key in BALANCE_TYPES:
+            target = await db.users.find_one({"id": row["user_id"]})
+            current_balance = (target.get("balances") or {}).get(balance_key, 0) if target else 0
+            if current_balance < new_lama:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Sisa {LEAVE_TYPE_LABELS[balance_key]} tidak mencukupi (sisa {current_balance} hari, butuh {new_lama} hari)",
+                )
+
+    if update:
+        await db.leave_requests.update_one({"id": req_id}, {"$set": update})
     updated = await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
     return updated
+
+
+@api.put("/leave-requests/{req_id}/form-no")
+async def update_form_no(req_id: str, payload: dict, user=Depends(get_current_user)):
+    """Endpoint quick-edit form_no (alias dari PUT /leave-requests/{id})."""
+    return await update_leave_request(req_id, LeaveRequestUpdate(form_no=payload.get("form_no")), user)
+
+
+@api.delete("/leave-requests/{req_id}")
+async def cancel_leave_request(req_id: str, user=Depends(get_current_user)):
+    row = await db.leave_requests.find_one({"id": req_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
+    if user["role"] == "pegawai" and row["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Akses ditolak")
+    if row["status"] != "menunggu":
+        raise HTTPException(
+            status_code=400,
+            detail="Pengajuan tidak bisa dibatalkan setelah diverifikasi Kepala Puskesmas",
+        )
+    await db.leave_requests.delete_one({"id": req_id})
+    return {"ok": True}
 
 
 @api.post("/leave-requests/{req_id}/decide")
