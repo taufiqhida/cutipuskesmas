@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: cuti-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: cuti-backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_URL: "mongodb://mongo:27017"
+      DB_NAME: "sicuti_bugangan"
+      CORS_ORIGINS: "*"
+      JWT_SECRET: "${JWT_SECRET:-change-me-in-production-9f7a2d4b1c8e6f0a3b5d7c9e1f2a4b6d}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@puskesmas-bugangan.go.id}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:3000}"
+    ports:
+      - "8001:8001"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Saat akses dari browser di host, /api akan di-proxy ke backend lewat nginx (opsional),
+        # tetapi paling sederhana: set langsung ke URL backend.
+        REACT_APP_BACKEND_URL: "${REACT_APP_BACKEND_URL:-http://localhost:8001}"
+    container_name: cuti-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  mongo-data:

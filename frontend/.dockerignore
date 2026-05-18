@@ -1,0 +1,9 @@
+node_modules/
+build/
+.cache/
+.next/
+.env
+*.log
+.DS_Store
+Dockerfile
+.dockerignore
