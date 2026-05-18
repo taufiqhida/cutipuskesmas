@@ -1,0 +1,132 @@
+{
+  "project_context": {
+    "domain": "Government Healthcare Admin (Puskesmas Bugangan, Semarang)",
+    "app_type": "Dashboard & Leave Management System",
+    "theme": "Light",
+    "archetype": "Archetype 1: Organic & Earthy (Modified for Govt/Health)",
+    "design_goals": [
+      "Modernize traditional government forms without losing authority.",
+      "Clear, scannable data for Kepala, Admin, and Pegawai roles.",
+      "Replicate the structural integrity of the original leave form for the PDF export."
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Chivo",
+      "body": "IBM Plex Sans",
+      "monospace": "IBM Plex Mono",
+      "fallback": "sans-serif"
+    },
+    "hierarchy": {
+      "h1_hero": "text-4xl sm:text-5xl font-black tracking-tight leading-none",
+      "h2_section": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3_widget": "text-xl font-bold",
+      "body": "text-base leading-relaxed",
+      "small_label": "text-xs font-semibold tracking-[0.05em] uppercase text-stone-500"
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#F9F9F7",
+      "surface": "#FFFFFF",
+      "header": "#FFFFFF"
+    },
+    "text": {
+      "primary": "#1C1C1A",
+      "secondary": "#575752",
+      "inverse": "#FFFFFF"
+    },
+    "brand": {
+      "primary": "#1A4331",
+      "primary_hover": "#133224",
+      "accent": "#C46C4F",
+      "accent_hover": "#A5583E"
+    },
+    "semantic": {
+      "success": "#2D6A4F",
+      "success_bg": "#EAF4F0",
+      "warning": "#D4A373",
+      "warning_bg": "#FAEDCD",
+      "error": "#9B2226",
+      "error_bg": "#F9DEDC",
+      "info": "#219EBC",
+      "info_bg": "#DDF2F8"
+    },
+    "border": "#E5E5DF"
+  },
+  "layout_and_spacing": {
+    "philosophy": "Generous Spacing Philosophy",
+    "grid_strategy": "Control Room Grid for Dashboards, Data correlation, and scanability",
+    "containers": "max-w-7xl mx-auto px-6 lg:px-8",
+    "card_style": "Flat background, 1px solid border-[#E5E5DF], no shadow by default. hover:shadow-md transition-shadow",
+    "spacing_scale": {
+      "section": "py-16 md:py-24",
+      "widget_padding": "p-6 sm:p-8",
+      "gap_standard": "gap-6",
+      "gap_tight": "gap-4"
+    }
+  },
+  "components": {
+    "forms": {
+      "input": "Shadcn standard but with border-stone-300 focus:ring-primary focus:border-primary. Always use explicit labels and helper text.",
+      "select": "Shadcn Select for Enum values (Jenis Cuti).",
+      "buttons": {
+        "primary": "bg-[#1A4331] text-white hover:bg-[#133224] px-6 py-2 rounded-md font-medium transition-colors",
+        "secondary": "bg-white text-[#1A4331] border border-[#1A4331] hover:bg-stone-50 px-6 py-2 rounded-md font-medium transition-colors"
+      }
+    },
+    "navigation": {
+      "header": "Sticky top, z-50, bg-white/90 backdrop-blur-md border-b border-stone-200. Must include Logo, User Profile, and Navigation Links.",
+      "sidebar": "If used, flat white bg, 1px right border, primary color for active state with subtle background tint (#EAF4F0)."
+    },
+    "data_display": {
+      "table": "Dense padding for Admin views. left-aligned text, explicit data-testid for all rows.",
+      "status_badge": "Rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider. Colored by semantic status (Setuju=Success, Ditangguhkan=Warning, Tidak Disetujui=Error)."
+    }
+  },
+  "interactions_and_motion": {
+    "hover_states": "All interactive elements MUST have explicit hover states with higher contrast or slight lift (-translate-y-px).",
+    "transitions": "transition-all duration-200 ease-in-out",
+    "animations": "Subtle fade-in for page loads, and slide-in for dialogs/modals."
+  },
+  "testing_requirements": {
+    "data_testid": "MANDATORY on all buttons, links, form inputs, status badges, and menu items. Format: kebab-case, role-based. e.g., 'submit-leave-request-btn', 'input-jenis-cuti', 'approve-request-btn'."
+  },
+  "pdf_print_rules": {
+    "kop_surat": "Center-aligned header with Government Logos, clear bold typography for 'PEMERINTAH KOTA SEMARANG', 'DINAS KESEHATAN', 'UPTD PUSKESMAS BUGANGAN', full horizontal rule (border-b-4 + border-b-1).",
+    "structure": "Replicate standard Indonesian formal form table structures. A4 dimensions, print-friendly borders, no background colors (bg-white).",
+    "signatures": "Tanda tangan blocks structured with name, NIP, and space for scanned signature image and QR code at bottom-left and bottom-right."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "Use consistently for sidebar nav, action buttons (e.g., FileText, CheckCircle, XCircle, Clock)."
+  },
+  "media": {
+    "images": {
+      "login_background": {
+        "url": "https://images.unsplash.com/photo-1769698678497-c41f0ab47c3e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjbGluaWMlMjBidWlsZGluZ3xlbnwwfHx8fDE3NzkwNzY4NjR8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Modern medical centre building with glass facade. Use with a dark green overlay (bg-[#1A4331]/80) to ensure login form readability.",
+        "placement": "Login page split-screen background."
+      },
+      "dashboard_hero_illustration": {
+        "url": "https://images.unsplash.com/photo-1638463177796-e98604d0d0be?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwyfHxpbmRvbmVzaWElMjBtZWRpY2FsJTIwc3RhZmZ8ZW58MHx8fHwxNzc5MDc2ODY0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Indonesian medical staff in a hallway. Subtle context image.",
+        "placement": "Welcome banner in Pegawai dashboard or 'About/Info' sections."
+      },
+      "form_empty_state": {
+        "url": "https://images.unsplash.com/photo-1523705480679-b5d0cc17a656?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwyfHxtZWRpY2FsJTIwZG9jdW1lbnQlMjBjbGlwYm9hcmR8ZW58MHx8fHwxNzc5MDc2ODY0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Medical document clipboard.",
+        "placement": "Empty state illustration for 'No Leave Requests' or 'Approval Queue Empty'."
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "Ensure the layout strictly follows the 'Control Room' bento grid pattern for dashboards.",
+    "Formulir cuti needs to map perfectly to the physical document when printed or exported as PDF.",
+    "Do NOT use pure #000000 for text. Use #1C1C1A.",
+    "Add 'data-testid' to ALL interactive inputs, dropdowns, buttons, and row items.",
+    "Use Shadcn UI form components heavily customized to match the spacing and color guidelines.",
+    "For the 3 roles (Admin, Kepala, Pegawai), maintain visual consistency but use clear header titles or subtle structural shifts to distinguish the active role.",
+    "Implement clear Bahasa Indonesia terminology (Setuju, Ditangguhkan, Tidak Disetujui, Menunggu Keputusan)."
+  ]
+}
