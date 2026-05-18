@@ -481,6 +481,22 @@ async def get_leave_request(req_id: str, user=Depends(get_current_user)):
     return row
 
 
+@api.put("/leave-requests/{req_id}/form-no")
+async def update_form_no(req_id: str, payload: dict, user=Depends(get_current_user)):
+    row = await db.leave_requests.find_one({"id": req_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
+    # Pegawai hanya boleh edit punyanya sendiri; admin & kepala boleh semua
+    if user["role"] == "pegawai" and row["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Akses ditolak")
+    new_form_no = (payload.get("form_no") or "").strip()
+    if not new_form_no:
+        raise HTTPException(status_code=400, detail="Nomor surat tidak boleh kosong")
+    await db.leave_requests.update_one({"id": req_id}, {"$set": {"form_no": new_form_no}})
+    updated = await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
+    return updated
+
+
 @api.post("/leave-requests/{req_id}/decide")
 async def decide_leave_request(req_id: str, body: DecideIn, user=Depends(require_role("kepala"))):
     row = await db.leave_requests.find_one({"id": req_id})
@@ -733,23 +749,22 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
     story.append(t4)
     story.append(Spacer(1, 14))
 
-    # Signature blocks (pegawai right, decision center, kepala center-right after)
-    # Build sig images
-    peg_sig = _decode_signature(pegawai.get("signature_base64") if pegawai else None)
-    kep_sig = _decode_signature(kepala.get("signature_base64") if kepala else None)
+    # Signature blocks — pakai QR code (barcode) untuk pegawai & kepala
+    # QR code mengarah ke halaman verifikasi publik
+    peg_qr = _build_qr(verify_url)
+    kep_qr = _build_qr(verify_url)
 
     # Pegawai (right aligned)
     peg_block = [
         Paragraph("Hormat saya,", body),
         Spacer(1, 4),
+        RLImage(peg_qr, width=2.2*cm, height=2.2*cm),
+        Paragraph("Scan untuk verifikasi", small),
+        Spacer(1, 2),
+        Paragraph(f"<b><u>{pegawai['name'] if pegawai else row['user_name']}</u></b>", body),
+        Paragraph(
+            f"NIP: {pegawai['nip'] if pegawai and pegawai.get('is_asn') else 'Non ASN'}", small),
     ]
-    if peg_sig:
-        peg_block.append(RLImage(peg_sig, width=3*cm, height=1.5*cm))
-    else:
-        peg_block.append(Spacer(1, 1.5*cm))
-    peg_block.append(Paragraph(f"<b><u>{pegawai['name'] if pegawai else row['user_name']}</u></b>", body))
-    peg_block.append(Paragraph(
-        f"NIP: {pegawai['nip'] if pegawai and pegawai.get('is_asn') else 'Non ASN'}", small))
 
     sig_tbl = Table([["", peg_block]], colWidths=[9*cm, 8*cm])
     sig_tbl.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP")]))
@@ -773,28 +788,21 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         story.append(Paragraph(f"<b>Catatan Kepala:</b> {row['pesan_kepala']}", body))
     story.append(Spacer(1, 12))
 
-    # Kepala signature with QR code
-    qr_buf = _build_qr(verify_url)
+    # Kepala signature — pakai QR code (barcode) bukan gambar TTD
     kep_block = [
         Paragraph(f"Semarang, {today_str}", body),
         Paragraph("Kepala UPTD Puskesmas Bugangan", body),
         Spacer(1, 4),
+        RLImage(kep_qr, width=2.2*cm, height=2.2*cm),
+        Paragraph("Scan untuk verifikasi", small),
+        Spacer(1, 2),
     ]
-    if kep_sig:
-        kep_block.append(RLImage(kep_sig, width=3*cm, height=1.5*cm))
-    else:
-        kep_block.append(Spacer(1, 1.5*cm))
     kep_name = kepala["name"] if kepala else "____________________"
     kep_nip = kepala["nip"] if kepala and kepala.get("is_asn") else "Non ASN"
     kep_block.append(Paragraph(f"<b><u>{kep_name}</u></b>", body))
     kep_block.append(Paragraph(f"NIP: {kep_nip}", small))
 
-    qr_block = [
-        RLImage(qr_buf, width=2.5*cm, height=2.5*cm),
-        Paragraph("Scan untuk verifikasi", small),
-    ]
-
-    sig_tbl2 = Table([[qr_block, "", kep_block]], colWidths=[4*cm, 5*cm, 8*cm])
+    sig_tbl2 = Table([["", kep_block]], colWidths=[9*cm, 8*cm])
     sig_tbl2.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP")]))
     story.append(sig_tbl2)
 
