@@ -10,6 +10,7 @@ import AdminAllRequests from "@/pages/AdminAllRequests";
 import KepalaDashboard from "@/pages/KepalaDashboard";
 import PegawaiDashboard from "@/pages/PegawaiDashboard";
 import AjukanCutiPage from "@/pages/AjukanCutiPage";
+import ProfilePage from "@/pages/ProfilePage";
 import VerifyPage from "@/pages/VerifyPage";
 import "@/App.css";
 
@@ -56,6 +57,11 @@ function App() {
           <Route
             path="/pegawai/ajukan"
             element={<ProtectedRoute roles={["pegawai", "kepala"]}><AppLayout><AjukanCutiPage /></AppLayout></ProtectedRoute>}
+          />
+
+          <Route
+            path="/profil"
+            element={<ProtectedRoute roles={["pegawai", "kepala", "admin"]}><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>}
           />
 
           <Route path="*" element={<RoleRedirect />} />

@@ -64,12 +64,17 @@ export default function AppLayout({ children }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <div className="text-sm font-semibold">{user?.name}</div>
+            <Link
+              to="/profil"
+              data-testid="profile-link"
+              className="text-right hidden sm:block group cursor-pointer"
+              title="Profil saya"
+            >
+              <div className="text-sm font-semibold group-hover:text-[#1A4331] transition-colors">{user?.name}</div>
               <div className="text-[11px] uppercase tracking-wider text-stone-500">
                 {ROLE_LABELS[user?.role] || user?.role}
               </div>
-            </div>
+            </Link>
             <Button
               variant="outline"
               size="sm"

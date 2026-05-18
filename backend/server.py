@@ -349,6 +349,62 @@ async def create_user(body: UserCreate, user=Depends(require_role("admin"))):
     return new_user
 
 
+class UserSelfUpdate(BaseModel):
+    """Field yang bisa diubah sendiri oleh pegawai/kepala via /api/users/me.
+    Tidak termasuk role dan balances (hanya admin)."""
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    nik: Optional[str] = None
+    is_asn: Optional[bool] = None
+    nip: Optional[str] = None
+    jabatan: Optional[str] = None
+    masa_kerja_tahun: Optional[int] = None
+    masa_kerja_bulan: Optional[int] = None
+    alamat: Optional[str] = None
+    telepon: Optional[str] = None
+    password: Optional[str] = None
+    current_password: Optional[str] = None  # wajib jika mengubah password
+
+
+@api.put("/users/me")
+async def update_my_profile(body: UserSelfUpdate, user=Depends(get_current_user)):
+    target = await db.users.find_one({"id": user["id"]})
+    if not target:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+
+    update = {}
+    payload = body.model_dump(exclude_none=True)
+
+    # Jika ganti password, wajib sertakan current_password yang valid
+    new_password = payload.pop("password", None)
+    current_password = payload.pop("current_password", None)
+    if new_password:
+        if not current_password or not verify_password(current_password, target.get("password_hash", "")):
+            raise HTTPException(status_code=400, detail="Password lama salah")
+        if len(new_password) < 6:
+            raise HTTPException(status_code=400, detail="Password baru minimal 6 karakter")
+        update["password_hash"] = hash_password(new_password)
+
+    # Jika ganti email, normalisasi & cek keunikan
+    if "email" in payload:
+        new_email = payload["email"].lower().strip()
+        if new_email != target["email"]:
+            existing = await db.users.find_one({"email": new_email, "id": {"$ne": user["id"]}})
+            if existing:
+                raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+            update["email"] = new_email
+        payload.pop("email")
+
+    # Field lainnya boleh diubah langsung
+    update.update(payload)
+
+    if update:
+        await db.users.update_one({"id": user["id"]}, {"$set": update})
+
+    out = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+    return out
+
+
 @api.put("/users/{user_id}")
 async def update_user(user_id: str, body: UserUpdate, user=Depends(require_role("admin"))):
     target = await db.users.find_one({"id": user_id})
