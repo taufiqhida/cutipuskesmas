@@ -799,16 +799,26 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         story.append(Paragraph(f"<b>Catatan Kepala:</b> {row['pesan_kepala']}", body))
     story.append(Spacer(1, 4))
 
-    # Kepala TTD (kanan)
-    kep_block = [
-        Paragraph(f"Semarang, {today_str}", body),
-        Paragraph("Kepala UPTD Puskesmas Bugangan", body),
-        RLImage(kep_qr, width=1.8*cm, height=1.8*cm),
-    ]
-    kep_name = kepala["name"] if kepala else "____________________"
-    kep_nip = kepala["nip"] if kepala and kepala.get("is_asn") else "Non ASN"
-    kep_block.append(Paragraph(f"<b><u>{kep_name}</u></b>", body))
-    kep_block.append(Paragraph(f"NIP: {kep_nip}", small))
+    # Kepala TTD (kanan) — HANYA muncul jika kepala sudah memutuskan (bukan status menunggu)
+    if row["status"] != "menunggu" and row.get("approved_by"):
+        kep_block = [
+            Paragraph(f"Semarang, {today_str}", body),
+            Paragraph("Kepala UPTD Puskesmas Bugangan", body),
+            RLImage(kep_qr, width=1.8*cm, height=1.8*cm),
+        ]
+        kep_name = kepala["name"] if kepala else "____________________"
+        kep_nip = kepala["nip"] if kepala and kepala.get("is_asn") else "Non ASN"
+        kep_block.append(Paragraph(f"<b><u>{kep_name}</u></b>", body))
+        kep_block.append(Paragraph(f"NIP: {kep_nip}", small))
+    else:
+        # Belum disetujui — tampilkan placeholder kosong (tanpa TTD/QR)
+        kep_block = [
+            Paragraph(f"Semarang, ____________________", body),
+            Paragraph("Kepala UPTD Puskesmas Bugangan", body),
+            Spacer(1, 1.8*cm),
+            Paragraph("<b><u>____________________</u></b>", body),
+            Paragraph("NIP: ____________________", small),
+        ]
 
     sig_tbl2 = Table([["", kep_block]], colWidths=[10*cm, 8*cm])
     sig_tbl2.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP")]))
