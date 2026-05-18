@@ -62,6 +62,25 @@ export default function AjukanCutiPage() {
 
       <form onSubmit={submit} className="space-y-6">
         <Card className="border-stone-200">
+          <CardHeader><CardTitle className="font-heading text-lg">Nomor Surat</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>No. Formulir</Label>
+                <Input
+                  data-testid="input-form-no"
+                  value={formNo}
+                  onChange={(e) => setFormNo(e.target.value)}
+                  placeholder="contoh: B/001/851/06/2026"
+                  className="font-mono"
+                />
+                <p className="text-xs text-stone-500">Isi nomor surat sesuai format Puskesmas. Jika dikosongkan, sistem akan generate otomatis.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-stone-200">
           <CardHeader><CardTitle className="font-heading text-lg">I. Data Pegawai</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4 text-sm">
             <div><div className="text-[10px] uppercase tracking-wider text-stone-500">Nama</div><div className="font-semibold">{user?.name}</div></div>
@@ -140,25 +159,6 @@ export default function AjukanCutiPage() {
             <div className="space-y-2 md:col-span-2">
               <Label>Alamat</Label>
               <Textarea data-testid="input-alamat-cuti" required rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Telepon</Label>
-              <Input data-testid="input-telp-cuti" required value={telepon} onChange={(e) => setTelepon(e.target.value)} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>Batal</Button>
-          <Button type="submit" disabled={busy} data-testid="submit-cuti-btn" className="bg-[#1A4331] hover:bg-[#133224]">
-            <Send className="w-4 h-4 mr-1" /> {busy ? "Mengirim..." : "Kirim Pengajuan"}
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
-ut-alamat-cuti" required rows={2} value={alamat} onChange={(e) => setAlamat(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Telepon</Label>
