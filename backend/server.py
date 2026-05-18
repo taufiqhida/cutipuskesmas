@@ -563,7 +563,18 @@ def _decode_signature(b64: Optional[str]) -> Optional[io.BytesIO]:
         if "," in b64:
             b64 = b64.split(",", 1)[1]
         raw = base64.b64decode(b64)
-        return io.BytesIO(raw)
+        if len(raw) < 100:
+            # Too small to be a real signature image — skip to avoid PIL crash
+            return None
+        # Validate it's actually parseable by PIL
+        from PIL import Image as PILImage
+        buf = io.BytesIO(raw)
+        try:
+            PILImage.open(buf).verify()
+        except Exception:
+            return None
+        buf.seek(0)
+        return buf
     except Exception:
         return None
 
