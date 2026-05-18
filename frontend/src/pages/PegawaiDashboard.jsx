@@ -159,9 +159,11 @@ export default function PegawaiDashboard() {
                     ) : (
                       <div className="flex items-center gap-1 group">
                         <span>{r.form_no}</span>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => startEdit(r)} data-testid={`edit-form-no-${r.id}`}>
-                          <Pencil className="w-3 h-3" />
-                        </Button>
+                        {r.status === "menunggu" && (
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => startEdit(r)} data-testid={`edit-form-no-${r.id}`} title="Edit nomor surat">
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                        )}
                       </div>
                     )}
                   </TableCell>

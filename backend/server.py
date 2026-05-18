@@ -201,6 +201,7 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.leave_requests.create_index("id", unique=True)
+    await db.leave_requests.create_index("form_no", unique=True)
     await db.leave_requests.create_index("user_id")
     await db.leave_requests.create_index("status")
 
@@ -414,9 +415,19 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
     year = datetime.now(timezone.utc).year
     if body.form_no and body.form_no.strip():
         form_no = body.form_no.strip()
+        # Validasi keunikan untuk nomor surat manual
+        existing = await db.leave_requests.find_one({"form_no": form_no})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Nomor surat '{form_no}' sudah digunakan pengajuan lain")
     else:
+        # Auto-generate sampai dapat nomor yang unik
         count = await db.leave_requests.count_documents({"year": year})
-        form_no = f"B/{count + 1:03d}/851/{datetime.now(timezone.utc).month:02d}/{year}"
+        while True:
+            count += 1
+            candidate = f"B/{count:03d}/851/{datetime.now(timezone.utc).month:02d}/{year}"
+            if not await db.leave_requests.find_one({"form_no": candidate}):
+                form_no = candidate
+                break
 
     doc = {
         "id": str(uuid.uuid4()),
@@ -489,9 +500,21 @@ async def update_form_no(req_id: str, payload: dict, user=Depends(get_current_us
     # Pegawai hanya boleh edit punyanya sendiri; admin & kepala boleh semua
     if user["role"] == "pegawai" and row["user_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Akses ditolak")
+    # Hanya boleh edit kalau status masih "menunggu" (belum diverifikasi Kepala)
+    if row["status"] != "menunggu":
+        raise HTTPException(
+            status_code=400,
+            detail="Nomor surat tidak bisa diubah setelah pengajuan diverifikasi Kepala Puskesmas",
+        )
     new_form_no = (payload.get("form_no") or "").strip()
     if not new_form_no:
         raise HTTPException(status_code=400, detail="Nomor surat tidak boleh kosong")
+    # Cek keunikan — tidak boleh sama dengan pengajuan lain
+    existing = await db.leave_requests.find_one(
+        {"form_no": new_form_no, "id": {"$ne": req_id}}
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Nomor surat '{new_form_no}' sudah digunakan pengajuan lain")
     await db.leave_requests.update_one({"id": req_id}, {"$set": {"form_no": new_form_no}})
     updated = await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
     return updated
