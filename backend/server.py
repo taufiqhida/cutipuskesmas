@@ -376,9 +376,10 @@ async def delete_user(user_id: str, user=Depends(require_role("admin"))):
 @api.put("/users/me/signature")
 async def update_my_signature(payload: dict, user=Depends(get_current_user)):
     sig = payload.get("signature_base64")
-    if not sig:
-        raise HTTPException(status_code=400, detail="signature_base64 wajib diisi")
-    await db.users.update_one({"id": user["id"]}, {"$set": {"signature_base64": sig}})
+    if sig is None:
+        raise HTTPException(status_code=400, detail="signature_base64 wajib disertakan (boleh kosong untuk menghapus)")
+    new_value = sig if sig else None
+    await db.users.update_one({"id": user["id"]}, {"$set": {"signature_base64": new_value}})
     return {"ok": True}
 
 

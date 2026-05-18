@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import StatusBadge from "@/components/StatusBadge";
+import SignatureCard from "@/components/SignatureCard";
 import { LEAVE_TYPE_LABELS, formatTanggalID } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { FileText, Plus, CalendarDays, Wallet } from "lucide-react";
@@ -98,6 +99,8 @@ export default function PegawaiDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <SignatureCard />
 
       <Card className="border-stone-200">
         <CardHeader>

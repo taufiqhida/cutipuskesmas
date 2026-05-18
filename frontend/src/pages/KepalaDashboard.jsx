@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/StatusBadge";
+import SignatureCard from "@/components/SignatureCard";
 import { LEAVE_TYPE_LABELS, formatTanggalID } from "@/lib/constants";
 import { CheckCircle2, XCircle, Clock, Pencil, FileText, ChevronRight } from "lucide-react";
 
@@ -71,6 +72,8 @@ export default function KepalaDashboard({ mode = "pending" }) {
           </div>
         )}
       </div>
+
+      {mode === "pending" && <SignatureCard />}
 
       <div className="grid lg:grid-cols-2 gap-4">
         {rows.map((r) => (
