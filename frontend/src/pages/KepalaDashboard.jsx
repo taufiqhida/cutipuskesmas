@@ -40,11 +40,9 @@ export default function KepalaDashboard({ mode = "pending" }) {
     } finally { setBusy(false); }
   };
 
-  const openPdf = async (id) => {
+  const openPdf = (id) => {
     const token = localStorage.getItem("cuti_token");
-    const res = await fetch(`${API}/leave-requests/${id}/pdf`, { headers: { Authorization: `Bearer ${token}` } });
-    const blob = await res.blob();
-    window.open(URL.createObjectURL(blob), "_blank");
+    window.open(`${API}/leave-requests/${id}/pdf?token=${encodeURIComponent(token)}`, "_blank");
   };
 
   const decisionIcons = {

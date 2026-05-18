@@ -564,7 +564,25 @@ def _decode_signature(b64: Optional[str]) -> Optional[io.BytesIO]:
 
 
 @api.get("/leave-requests/{req_id}/pdf")
-async def export_pdf(req_id: str, user=Depends(get_current_user)):
+async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    # Allow auth via either Authorization header OR ?token= query param (for direct browser links)
+    auth_token = None
+    if credentials:
+        auth_token = credentials.credentials
+    elif token:
+        auth_token = token
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="Tidak terautentikasi")
+    try:
+        payload = jwt.decode(auth_token, os.environ["JWT_SECRET"], algorithms=[JWT_ALGORITHM])
+        user = await db.users.find_one({"id": payload.get("sub")}, {"_id": 0, "password_hash": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="User tidak ditemukan")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token kedaluwarsa")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token tidak valid")
+
     row = await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
     if not row:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
