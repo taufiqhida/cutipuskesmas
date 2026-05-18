@@ -1,0 +1,43 @@
+{
+  "summary": "Comprehensive backend (23 pytest) + frontend e2e tests for Sistem Cuti UPTD Puskesmas Bugangan. All backend endpoints working (auth, users CRUD, leave requests, decide+balance deduction, PDF export, public verify). Frontend: all 3 role logins → correct dashboards; admin add-pegawai works; pegawai submits cuti successfully; kepala sees pending in queue with decide modal. Fixed 1 backend bug (ObjectId leaking on POST /api/users response).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/users", "issue": "FIXED: was returning 500 because Motor mutates inserted dict with ObjectId _id, which FastAPI cannot JSON-serialize. Added new_user.pop('_id', None) before return."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin UserDialog", "issues": ["Console warning: Radix DialogContent missing aria-describedby/Description. Accessibility minor."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sistem_cuti.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: add DialogDescription to AdminDashboard UserDialog to silence Radix a11y warning.",
+    "Optional: tighten EmailStr validation — currently rejects .local TLD (pydantic email_validator default). Use email_validator with allow_special_use=True if internal TLDs needed in tests/production."
+  ],
+  "critical_code_review_comments": [
+    "POST /api/users was leaking Mongo ObjectId — fixed (must pop _id before returning any Motor-inserted dict).",
+    "form_no generation uses count_documents({'year': year}) — not race-safe under concurrency; consider atomic counter collection or unique compound index. Low priority for this scale.",
+    "JWT_SECRET in .env (good); admin password sync logic on startup is idempotent.",
+    "Balance deduction uses max(0, cur - lamanya) which masks insufficient balance; create endpoint already blocks insufficient — so deduction guard is defensive (acceptable).",
+    "cuti_bersama correctly maps to cuti_tahunan budget both in create_leave_request and decide.",
+    "PDF route exposes data to any logged-in pegawai/kepala for own/all requests; kepala can read all requests (intentional)."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (fix _id leak in create_user response)",
+    "/app/backend/tests/test_sistem_cuti.py (new comprehensive test file)"
+  ],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100% on tested flows (login×3, admin create, pegawai submit, kepala queue/modal)"},
+  "test_credentials": "Admin: admin@puskesmas-bugangan.go.id/admin123; Kepala: kepala@puskesmas-bugangan.go.id/kepala123; Pegawai: tedy@puskesmas-bugangan.go.id/pegawai123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test created e2e users (e2e_*@example.com) and one leave_request B/002/851/05/2026 by Tedy still in 'menunggu' status (the Simpan Keputusan click did not commit in last UI run, but backend decide endpoint is fully verified in pytest). Cleanup: test pegawai users created via fixtures are auto-deleted.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_sistem_cuti.py covers 23 cases including create→decide→balance-deduct→pdf→public-verify chain. Frontend testids confirmed: login-{email-input,password-input,submit-btn}; admin: add-user-btn, input-{nama,email,password,role,is-asn,nip,nik,jabatan,telepon,alamat,signature-file,saldo-*}, save-user-btn; pegawai ajukan: jenis-cuti_*, input-{alasan,tanggal-mulai,tanggal-selesai,alamat-cuti,telp-cuti}, submit-cuti-btn; kepala: process-btn-{id}, status-menunggu. EmailStr in Pydantic rejects .local/.test TLDs — use @example.com in tests.",
+  "rca of the issue": "POST /api/users returned 500 because pymongo/motor's insert_one mutates the supplied document, injecting an `_id: ObjectId(...)` field. The handler then returned `new_user` directly via FastAPI which calls jsonable_encoder → raises 'ObjectId is not iterable'. Fix: pop '_id' before returning. Reproduced by POSTing valid user payload and observing 500. After fix all 23 backend tests pass."
+}
