@@ -144,15 +144,6 @@ export default function LoginPage() {
                 {!busy && <ArrowRight className="w-4 h-4 ml-2" />}
               </Button>
             </form>
-
-            <div className="mt-8 border-t border-stone-200 pt-5">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-stone-500 mb-2">Akun Demo</div>
-              <div className="grid grid-cols-1 gap-1 text-xs text-stone-600 font-mono">
-                <div>admin@puskesmas-bugangan.go.id · admin123</div>
-                <div>kepala@puskesmas-bugangan.go.id · kepala123</div>
-                <div>tedy@puskesmas-bugangan.go.id · pegawai123</div>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
