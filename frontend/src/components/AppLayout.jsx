@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Stethoscope, LogOut, Users, FileText, ClipboardList, ShieldCheck } from "lucide-react";
+import { Stethoscope, LogOut, Users, FileText, ClipboardList, ShieldCheck, User as UserIcon } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/constants";
 
 export default function AppLayout({ children }) {
@@ -102,6 +102,15 @@ export default function AppLayout({ children }) {
               </Link>
             );
           })}
+          <Link
+            to="/profil"
+            data-testid="mobile-profile-link"
+            className={`whitespace-nowrap px-3 py-1.5 rounded-md text-xs flex items-center gap-1 ${
+              location.pathname === "/profil" ? "bg-[#EAF4F0] text-[#1A4331] font-semibold" : "text-stone-600"
+            }`}
+          >
+            <UserIcon className="w-3 h-3" /> Profil
+          </Link>
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-8 fade-in">{children}</main>
