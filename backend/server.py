@@ -927,8 +927,12 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
     story.append(line_tbl)
     story.append(Spacer(1, 6))
 
-    # Date right
-    today_str = _id_date(row.get("approved_at", row["created_at"])[:10]) if row.get("approved_at") else _id_date(row["created_at"][:10])
+    # Tanggal surat — HANYA muncul setelah admin ACC (status: menunggu_kepala atau setelahnya)
+    post_acc_statuses = ("menunggu_kepala", "disetujui", "perubahan", "ditangguhkan", "tidak_disetujui")
+    if row["status"] in post_acc_statuses and row.get("admin_reviewed_at"):
+        today_str = _id_date(row["admin_reviewed_at"][:10])
+    else:
+        today_str = "____________________"
     addr_tbl = Table([[
         Paragraph(f"Kepada Yth.<br/>Kepala UPTD Puskesmas Bugangan<br/>di Semarang", body),
         Paragraph(f"Semarang, {today_str}", body),
@@ -938,7 +942,8 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
     story.append(Spacer(1, 4))
 
     story.append(Paragraph("FORMULIR PERMINTAAN DAN PEMBERIAN CUTI", title_style))
-    story.append(Paragraph(f"No. {row['form_no']}", ParagraphStyle("no", parent=body, alignment=TA_CENTER)))
+    form_no_display = row.get("form_no") or "____________________"
+    story.append(Paragraph(f"No. {form_no_display}", ParagraphStyle("no", parent=body, alignment=TA_CENTER)))
     story.append(Spacer(1, 6))
 
     # Data Pegawai
