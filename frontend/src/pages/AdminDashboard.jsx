@@ -74,7 +74,7 @@ function UserDialog({ open, onOpenChange, initial, onSave }) {
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input data-testid="input-email" type="email" disabled={isEdit} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <Input data-testid="input-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Password {isEdit && <span className="text-xs text-stone-500">(kosongkan jika tidak diubah)</span>}</Label>

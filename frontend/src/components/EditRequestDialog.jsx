@@ -19,7 +19,6 @@ export default function EditRequestDialog({ open, onOpenChange, request, onSaved
   useEffect(() => {
     if (request && open) {
       setForm({
-        form_no: request.form_no || "",
         jenis_cuti: request.jenis_cuti,
         alasan: request.alasan || "",
         tanggal_mulai: request.tanggal_mulai || "",
@@ -64,17 +63,11 @@ export default function EditRequestDialog({ open, onOpenChange, request, onSaved
         </DialogHeader>
 
         <form onSubmit={save} className="space-y-5 pt-2">
-          <div className="space-y-2">
-            <Label>No. Formulir</Label>
-            <Input
-              data-testid="edit-input-form-no"
-              value={form.form_no || ""}
-              onChange={(e) => setForm({ ...form, form_no: e.target.value })}
-              className="font-mono"
-              placeholder="B/001/851/06/2026"
-            />
-            <p className="text-xs text-stone-500">Nomor surat harus unik. Kosongkan untuk tetap auto-generate.</p>
-          </div>
+          {request.catatan_admin && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
+              <b>Catatan Admin:</b> {request.catatan_admin}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Jenis Cuti</Label>

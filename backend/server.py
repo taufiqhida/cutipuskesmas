@@ -155,6 +155,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
+    email: Optional[EmailStr] = None
     nik: Optional[str] = None
     is_asn: Optional[bool] = None
     nip: Optional[str] = None
@@ -170,20 +171,27 @@ class UserUpdate(BaseModel):
 
 
 class LeaveRequestCreate(BaseModel):
-    form_no: Optional[str] = None  # nomor surat manual; jika kosong/None akan di-generate otomatis
+    # form_no DIHAPUS — sekarang admin yang menetapkan
     jenis_cuti: Literal[
-        "cuti_tahunan",
-        "cuti_bersama",
-        "cuti_sakit",
-        "cuti_melahirkan",
-        "cuti_alasan_penting",
-        "cuti_luar_tanggungan",
+        "cuti_tahunan", "cuti_bersama", "cuti_sakit",
+        "cuti_melahirkan", "cuti_alasan_penting", "cuti_luar_tanggungan",
     ]
     alasan: str
-    tanggal_mulai: str  # ISO date
+    tanggal_mulai: str
     tanggal_selesai: str
     alamat_selama_cuti: str
     telepon_selama_cuti: str
+
+
+class AdminActionIn(BaseModel):
+    """Aksi admin: tolak / revisi / acc (assign form_no) / kirim_kepala."""
+    action: Literal["tolak", "revisi", "acc", "kirim_kepala"]
+    form_no: Optional[str] = None  # wajib untuk acc & kirim_kepala
+    catatan: Optional[str] = ""
+
+
+class DeleteIn(BaseModel):
+    reason: str = ""
 
 
 class DecideIn(BaseModel):
@@ -457,7 +465,7 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
 
     days = _calc_days(body.tanggal_mulai, body.tanggal_selesai)
 
-    # Check balance for the chosen leave type (cuti_bersama uses cuti_tahunan budget)
+    # Check balance (saldo dicek tapi belum dipotong; dipotong saat kepala disetujui)
     balance_key = body.jenis_cuti if body.jenis_cuti != "cuti_bersama" else "cuti_tahunan"
     if balance_key in BALANCE_TYPES:
         current_balance = (user.get("balances") or {}).get(balance_key, 0)
@@ -467,28 +475,11 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
                 detail=f"Sisa {LEAVE_TYPE_LABELS[balance_key]} tidak mencukupi (sisa {current_balance} hari, butuh {days} hari)",
             )
 
-    # Generate next form number for the current year (or use manual input)
-    year = datetime.now(timezone.utc).year
-    if body.form_no and body.form_no.strip():
-        form_no = body.form_no.strip()
-        # Validasi keunikan untuk nomor surat manual
-        existing = await db.leave_requests.find_one({"form_no": form_no})
-        if existing:
-            raise HTTPException(status_code=400, detail=f"Nomor surat '{form_no}' sudah digunakan pengajuan lain")
-    else:
-        # Auto-generate sampai dapat nomor yang unik
-        count = await db.leave_requests.count_documents({"year": year})
-        while True:
-            count += 1
-            candidate = f"B/{count:03d}/851/{datetime.now(timezone.utc).month:02d}/{year}"
-            if not await db.leave_requests.find_one({"form_no": candidate}):
-                form_no = candidate
-                break
-
+    now_iso = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": str(uuid.uuid4()),
-        "form_no": form_no,
-        "year": year,
+        "form_no": "",  # diisi admin nanti
+        "year": datetime.now(timezone.utc).year,
         "user_id": user["id"],
         "user_name": user["name"],
         "jenis_cuti": body.jenis_cuti,
@@ -498,13 +489,23 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
         "lamanya": days,
         "alamat_selama_cuti": body.alamat_selama_cuti,
         "telepon_selama_cuti": body.telepon_selama_cuti,
-        "status": "menunggu",
+        "status": "menunggu_admin",  # alur baru: pegawai → admin → kepala
+        "catatan_admin": "",
         "pesan_kepala": "",
+        "balance_deducted": False,  # flag untuk refund
+        "admin_reviewed_by": None,
+        "admin_reviewed_at": None,
         "approved_by": None,
         "approved_by_name": None,
         "approved_at": None,
+        "deleted_at": None,
+        "deleted_by": None,
+        "deleted_reason": "",
+        "history": [
+            {"at": now_iso, "by": user["name"], "action": "submitted", "note": "Pengajuan dibuat pegawai"}
+        ],
         "verify_token": secrets.token_urlsafe(16),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now_iso,
     }
     await db.leave_requests.insert_one(doc)
     doc.pop("_id", None)
@@ -517,17 +518,28 @@ async def list_leave_requests(
     status_filter: Optional[str] = None,
     user=Depends(get_current_user),
 ):
-    """scope: mine (own), pending (kepala queue), all (admin/kepala view all)."""
-    query = {}
+    """scope: mine | admin_inbox | kepala_inbox | all | deleted."""
+    query: dict = {}
+
     if scope == "mine":
         query["user_id"] = user["id"]
-    elif scope == "pending":
+        query["status"] = {"$ne": "dihapus"}
+    elif scope == "admin_inbox":
+        if user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Akses ditolak")
+        query["status"] = "menunggu_admin"
+    elif scope == "kepala_inbox":
         if user["role"] not in ("kepala", "admin"):
             raise HTTPException(status_code=403, detail="Akses ditolak")
-        query["status"] = "menunggu"
+        query["status"] = "menunggu_kepala"
     elif scope == "all":
         if user["role"] not in ("kepala", "admin"):
             raise HTTPException(status_code=403, detail="Akses ditolak")
+        query["status"] = {"$ne": "dihapus"}
+    elif scope == "deleted":
+        if user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Akses ditolak")
+        query["status"] = "dihapus"
     else:
         raise HTTPException(status_code=400, detail="Scope tidak valid")
 
@@ -567,39 +579,36 @@ async def update_leave_request(req_id: str, body: LeaveRequestUpdate, user=Depen
     row = await db.leave_requests.find_one({"id": req_id})
     if not row:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
-    # Pegawai hanya boleh edit punyanya sendiri; admin/kepala boleh semua
     if user["role"] == "pegawai" and row["user_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Akses ditolak")
-    # Hanya boleh diubah selama status masih menunggu
-    if row["status"] != "menunggu":
-        raise HTTPException(
-            status_code=400,
-            detail="Pengajuan tidak bisa diubah setelah diverifikasi Kepala Puskesmas",
-        )
+    # Pegawai hanya boleh edit saat status menunggu_admin atau revisi; admin saat menunggu_admin
+    editable_statuses = {"menunggu_admin", "revisi"}
+    if user["role"] == "pegawai" and row["status"] not in editable_statuses:
+        raise HTTPException(status_code=400, detail="Pengajuan tidak bisa diubah pada status ini")
 
     update = body.model_dump(exclude_none=True)
+    # Pegawai tidak bisa ubah form_no (itu domain admin)
+    if user["role"] == "pegawai":
+        update.pop("form_no", None)
 
-    # Validasi nomor surat (jika diubah)
+    # Validasi nomor surat (jika admin yang ubah)
     if "form_no" in update:
-        new_form_no = update["form_no"].strip()
-        if not new_form_no:
-            raise HTTPException(status_code=400, detail="Nomor surat tidak boleh kosong")
-        if new_form_no != row["form_no"]:
+        new_form_no = (update["form_no"] or "").strip()
+        if new_form_no and new_form_no != row.get("form_no"):
+            # Uniqueness mencakup record yang sudah dihapus
             existing = await db.leave_requests.find_one(
                 {"form_no": new_form_no, "id": {"$ne": req_id}}
             )
             if existing:
-                raise HTTPException(status_code=400, detail=f"Nomor surat '{new_form_no}' sudah digunakan pengajuan lain")
+                raise HTTPException(status_code=400, detail=f"Nomor surat '{new_form_no}' sudah pernah digunakan")
         update["form_no"] = new_form_no
 
-    # Validasi tanggal & hitung ulang lamanya kalau ada perubahan tanggal
+    # Recalc lamanya kalau tanggal berubah
     new_start = update.get("tanggal_mulai", row["tanggal_mulai"])
     new_end = update.get("tanggal_selesai", row["tanggal_selesai"])
     if "tanggal_mulai" in update or "tanggal_selesai" in update:
-        days = _calc_days(new_start, new_end)
-        update["lamanya"] = days
+        update["lamanya"] = _calc_days(new_start, new_end)
 
-    # Validasi saldo cuti kalau jenis_cuti atau lamanya berubah
     new_jenis = update.get("jenis_cuti", row["jenis_cuti"])
     new_lama = update.get("lamanya", row["lamanya"])
     if new_jenis != row["jenis_cuti"] or new_lama != row["lamanya"]:
@@ -613,32 +622,61 @@ async def update_leave_request(req_id: str, body: LeaveRequestUpdate, user=Depen
                     detail=f"Sisa {LEAVE_TYPE_LABELS[balance_key]} tidak mencukupi (sisa {current_balance} hari, butuh {new_lama} hari)",
                 )
 
+    # Kalau pegawai resubmit setelah revisi → balik ke menunggu_admin
+    if user["role"] == "pegawai" and row["status"] == "revisi":
+        update["status"] = "menunggu_admin"
+        update["history"] = (row.get("history") or []) + [{
+            "at": datetime.now(timezone.utc).isoformat(),
+            "by": user["name"],
+            "action": "resubmitted",
+            "note": "Pegawai mengirim ulang setelah revisi",
+        }]
+
     if update:
         await db.leave_requests.update_one({"id": req_id}, {"$set": update})
-    updated = await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
-    return updated
+    return await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
 
 
-@api.put("/leave-requests/{req_id}/form-no")
-async def update_form_no(req_id: str, payload: dict, user=Depends(get_current_user)):
-    """Endpoint quick-edit form_no (alias dari PUT /leave-requests/{id})."""
-    return await update_leave_request(req_id, LeaveRequestUpdate(form_no=payload.get("form_no")), user)
-
-
-@api.delete("/leave-requests/{req_id}")
-async def cancel_leave_request(req_id: str, user=Depends(get_current_user)):
+@api.post("/leave-requests/{req_id}/admin-action")
+async def admin_action(req_id: str, body: AdminActionIn, user=Depends(require_role("admin"))):
     row = await db.leave_requests.find_one({"id": req_id})
     if not row:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
-    if user["role"] == "pegawai" and row["user_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Akses ditolak")
-    if row["status"] != "menunggu":
-        raise HTTPException(
-            status_code=400,
-            detail="Pengajuan tidak bisa dibatalkan setelah diverifikasi Kepala Puskesmas",
-        )
-    await db.leave_requests.delete_one({"id": req_id})
-    return {"ok": True}
+    if row["status"] not in ("menunggu_admin",):
+        raise HTTPException(status_code=400, detail="Pengajuan tidak dalam status menunggu admin")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    update = {
+        "admin_reviewed_by": user["name"],
+        "admin_reviewed_at": now_iso,
+        "catatan_admin": body.catatan or "",
+    }
+    note_log = ""
+
+    if body.action == "tolak":
+        update["status"] = "ditolak_admin"
+        note_log = f"Ditolak admin: {body.catatan or '-'}"
+    elif body.action == "revisi":
+        update["status"] = "revisi"
+        note_log = f"Minta revisi: {body.catatan or '-'}"
+    elif body.action in ("acc", "kirim_kepala"):
+        new_form_no = (body.form_no or "").strip()
+        if not new_form_no:
+            raise HTTPException(status_code=400, detail="Nomor surat wajib diisi sebelum kirim ke Kepala")
+        # cek unique (termasuk record yang dihapus)
+        existing = await db.leave_requests.find_one({"form_no": new_form_no, "id": {"$ne": req_id}})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Nomor surat '{new_form_no}' sudah pernah digunakan")
+        update["form_no"] = new_form_no
+        update["status"] = "menunggu_kepala"
+        note_log = f"Disetujui admin + nomor surat {new_form_no}, dikirim ke Kepala"
+
+    update["history"] = (row.get("history") or []) + [{
+        "at": now_iso, "by": user["name"], "action": body.action, "note": note_log,
+    }]
+
+    await db.leave_requests.update_one({"id": req_id}, {"$set": update})
+    return await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
 
 
 @api.post("/leave-requests/{req_id}/decide")
@@ -646,12 +684,12 @@ async def decide_leave_request(req_id: str, body: DecideIn, user=Depends(require
     row = await db.leave_requests.find_one({"id": req_id})
     if not row:
         raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
-    if row["status"] != "menunggu":
-        raise HTTPException(status_code=400, detail="Pengajuan sudah diproses")
+    if row["status"] != "menunggu_kepala":
+        raise HTTPException(status_code=400, detail="Pengajuan belum dikirim ke Kepala oleh admin")
 
-    new_status = body.decision  # disetujui / perubahan / ditangguhkan / tidak_disetujui
+    new_status = body.decision
 
-    # Deduct balance only when fully approved
+    # Potong saldo hanya saat disetujui
     if new_status == "disetujui":
         target = await db.users.find_one({"id": row["user_id"]})
         if target:
@@ -664,6 +702,7 @@ async def decide_leave_request(req_id: str, body: DecideIn, user=Depends(require
                     {"$set": {f"balances.{balance_key}": new_val}},
                 )
 
+    now_iso = datetime.now(timezone.utc).isoformat()
     await db.leave_requests.update_one(
         {"id": req_id},
         {"$set": {
@@ -671,11 +710,80 @@ async def decide_leave_request(req_id: str, body: DecideIn, user=Depends(require
             "pesan_kepala": body.pesan or "",
             "approved_by": user["id"],
             "approved_by_name": user["name"],
-            "approved_at": datetime.now(timezone.utc).isoformat(),
+            "approved_at": now_iso,
+            "balance_deducted": new_status == "disetujui",
+            "history": (row.get("history") or []) + [{
+                "at": now_iso, "by": user["name"], "action": f"kepala_{new_status}", "note": body.pesan or "-",
+            }],
         }},
     )
-    updated = await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
-    return updated
+    return await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
+
+
+@api.delete("/leave-requests/{req_id}")
+async def delete_leave_request(req_id: str, body: Optional[DeleteIn] = None, user=Depends(get_current_user)):
+    """Admin = soft delete (status=dihapus) dengan refund saldo.
+    Pegawai = soft delete pengajuan sendiri yang belum diproses."""
+    row = await db.leave_requests.find_one({"id": req_id})
+    if not row:
+        raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
+
+    if user["role"] == "pegawai":
+        if row["user_id"] != user["id"]:
+            raise HTTPException(status_code=403, detail="Akses ditolak")
+        if row["status"] not in ("menunggu_admin", "revisi", "ditolak_admin"):
+            raise HTTPException(status_code=400, detail="Pengajuan tidak bisa dibatalkan pada status ini")
+
+    if user["role"] not in ("admin", "pegawai"):
+        raise HTTPException(status_code=403, detail="Akses ditolak")
+
+    # Refund saldo kalau sebelumnya sudah dipotong
+    if row.get("balance_deducted"):
+        balance_key = row["jenis_cuti"] if row["jenis_cuti"] != "cuti_bersama" else "cuti_tahunan"
+        if balance_key in BALANCE_TYPES:
+            target = await db.users.find_one({"id": row["user_id"]})
+            if target:
+                cur = (target.get("balances") or {}).get(balance_key, 0)
+                await db.users.update_one(
+                    {"id": row["user_id"]},
+                    {"$set": {f"balances.{balance_key}": cur + row["lamanya"]}},
+                )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    reason = (body.reason if body else "") or ""
+    await db.leave_requests.update_one(
+        {"id": req_id},
+        {"$set": {
+            "status": "dihapus",
+            "deleted_at": now_iso,
+            "deleted_by": user["name"],
+            "deleted_reason": reason,
+            "balance_deducted": False,
+            "history": (row.get("history") or []) + [{
+                "at": now_iso, "by": user["name"], "action": "deleted", "note": reason or "Dihapus",
+            }],
+        }},
+    )
+    return {"ok": True, "refunded": row.get("balance_deducted", False)}
+
+
+@api.get("/admin/check-form-no")
+async def admin_check_form_no(form_no: str, user=Depends(require_role("admin"))):
+    """Cek apakah nomor surat sudah pernah digunakan (termasuk record yang sudah dihapus)."""
+    found = await db.leave_requests.find_one({"form_no": form_no}, {"_id": 0})
+    if not found:
+        return {"used": False}
+    return {
+        "used": True,
+        "id": found["id"],
+        "status": found["status"],
+        "pegawai": found.get("user_name"),
+        "tanggal_mulai": found.get("tanggal_mulai"),
+        "tanggal_selesai": found.get("tanggal_selesai"),
+        "deleted_at": found.get("deleted_at"),
+        "deleted_by": found.get("deleted_by"),
+        "deleted_reason": found.get("deleted_reason"),
+    }
 
 
 # ---------------- Public verification ----------------
@@ -943,8 +1051,9 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         story.append(Paragraph(f"<b>Catatan Kepala:</b> {row['pesan_kepala']}", body))
     story.append(Spacer(1, 4))
 
-    # Kepala TTD (kanan) — HANYA muncul jika kepala sudah memutuskan (bukan status menunggu)
-    if row["status"] != "menunggu" and row.get("approved_by"):
+    # Kepala TTD (kanan) — HANYA muncul jika kepala sudah memutuskan
+    final_kepala_statuses = ("disetujui", "perubahan", "ditangguhkan", "tidak_disetujui")
+    if row["status"] in final_kepala_statuses and row.get("approved_by"):
         kep_block = [
             Paragraph(f"Semarang, {today_str}", body),
             Paragraph("Kepala UPTD Puskesmas Bugangan", body),

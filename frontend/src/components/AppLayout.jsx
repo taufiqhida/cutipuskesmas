@@ -12,7 +12,7 @@ export default function AppLayout({ children }) {
   const navByRole = {
     admin: [
       { to: "/admin", label: "Manajemen Pegawai", icon: Users },
-      { to: "/admin/pengajuan", label: "Semua Pengajuan", icon: ClipboardList },
+      { to: "/admin/pengajuan", label: "Inbox Pengajuan", icon: ClipboardList },
     ],
     kepala: [
       { to: "/kepala", label: "Antrian Persetujuan", icon: ShieldCheck },

@@ -126,7 +126,7 @@ export default function PegawaiDashboard() {
                 <TableHead>Tanggal</TableHead>
                 <TableHead>Lama</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Catatan Kepala</TableHead>
+                <TableHead>Catatan</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -138,9 +138,13 @@ export default function PegawaiDashboard() {
                   <TableCell className="text-xs">{formatTanggalID(r.tanggal_mulai)} – {formatTanggalID(r.tanggal_selesai)}</TableCell>
                   <TableCell>{r.lamanya} hari</TableCell>
                   <TableCell><StatusBadge status={r.status} /></TableCell>
-                  <TableCell className="text-xs text-stone-600 max-w-[200px] truncate">{r.pesan_kepala || "—"}</TableCell>
+                  <TableCell className="text-xs text-stone-600 max-w-[220px]">
+                    {r.catatan_admin && <div className="text-[10px] text-amber-900 bg-amber-50 px-2 py-0.5 rounded mb-0.5">Admin: {r.catatan_admin}</div>}
+                    {r.pesan_kepala && <div className="text-[10px] text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded">Kepala: {r.pesan_kepala}</div>}
+                    {!r.catatan_admin && !r.pesan_kepala && "—"}
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {r.status === "menunggu" && (
+                    {(r.status === "menunggu_admin" || r.status === "revisi") && (
                       <>
                         <Button variant="ghost" size="sm" onClick={() => setEditing(r)} data-testid={`edit-request-${r.id}`} title="Edit pengajuan">
                           <Pencil className="w-4 h-4" />

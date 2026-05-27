@@ -9,7 +9,9 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("cuti_token");
-  if (token) {
+  // JANGAN kirim Authorization untuk endpoint login (biar tidak revalidate)
+  const isLogin = (config.url || "").includes("/auth/login");
+  if (token && !isLogin) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

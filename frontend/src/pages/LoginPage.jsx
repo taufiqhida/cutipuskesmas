@@ -16,6 +16,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Bersihkan session expired sebelum tampilkan form login
+  React.useEffect(() => {
+    if (!user) {
+      localStorage.removeItem("cuti_token");
+      localStorage.removeItem("cuti_user");
+    }
+  }, [user]);
+
   if (user) {
     const dest = user.role === "admin" ? "/admin" : user.role === "kepala" ? "/kepala" : "/pegawai";
     return <Navigate to={dest} replace />;

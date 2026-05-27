@@ -7,6 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminAllRequests from "@/pages/AdminAllRequests";
+import AdminInbox from "@/pages/AdminInbox";
 import KepalaDashboard from "@/pages/KepalaDashboard";
 import PegawaiDashboard from "@/pages/PegawaiDashboard";
 import AjukanCutiPage from "@/pages/AjukanCutiPage";
@@ -38,7 +39,7 @@ function App() {
           />
           <Route
             path="/admin/pengajuan"
-            element={<ProtectedRoute roles={["admin"]}><AppLayout><AdminAllRequests /></AppLayout></ProtectedRoute>}
+            element={<ProtectedRoute roles={["admin"]}><AppLayout><AdminInbox /></AppLayout></ProtectedRoute>}
           />
 
           <Route

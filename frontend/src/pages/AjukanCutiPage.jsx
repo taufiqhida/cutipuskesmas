@@ -35,7 +35,6 @@ export default function AjukanCutiPage() {
     setBusy(true);
     try {
       await api.post("/leave-requests", {
-        form_no: formNo,
         jenis_cuti: jenis,
         alasan,
         tanggal_mulai: tanggalMulai,
@@ -61,22 +60,9 @@ export default function AjukanCutiPage() {
       </div>
 
       <form onSubmit={submit} className="space-y-6">
-        <Card className="border-stone-200">
-          <CardHeader><CardTitle className="font-heading text-lg">Nomor Surat</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>No. Formulir</Label>
-                <Input
-                  data-testid="input-form-no"
-                  value={formNo}
-                  onChange={(e) => setFormNo(e.target.value)}
-                  placeholder="contoh: B/001/851/06/2026"
-                  className="font-mono"
-                />
-                <p className="text-xs text-stone-500">Isi nomor surat sesuai format Puskesmas. Jika dikosongkan, sistem akan generate otomatis.</p>
-              </div>
-            </div>
+        <Card className="border-stone-200 bg-amber-50">
+          <CardContent className="p-4 text-sm text-amber-900">
+            <b>Catatan:</b> Setelah Anda kirim, pengajuan akan masuk ke Admin terlebih dahulu untuk dicek dan diberi nomor surat resmi, kemudian dikirim ke Kepala Puskesmas untuk verifikasi.
           </CardContent>
         </Card>
 

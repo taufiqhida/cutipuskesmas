@@ -21,8 +21,8 @@ export default function KepalaDashboard({ mode = "pending" }) {
   const [busy, setBusy] = useState(false);
 
   const load = () => {
-    api.get(`/leave-requests?scope=${mode === "pending" ? "pending" : "all"}`).then((r) => {
-      const list = mode === "history" ? r.data.filter((x) => x.status !== "menunggu") : r.data;
+    api.get(`/leave-requests?scope=${mode === "pending" ? "kepala_inbox" : "all"}`).then((r) => {
+      const list = mode === "history" ? r.data.filter((x) => !["menunggu_admin","menunggu_kepala","revisi","dihapus"].includes(x.status)) : r.data;
       setRows(list);
     });
   };
@@ -66,7 +66,7 @@ export default function KepalaDashboard({ mode = "pending" }) {
         </div>
         {mode === "pending" && (
           <div className="text-right">
-            <div className="font-heading text-4xl font-black text-[#1A4331]">{rows.filter((r) => r.status === "menunggu").length}</div>
+            <div className="font-heading text-4xl font-black text-[#1A4331]">{rows.filter((r) => r.status === "menunggu_kepala").length}</div>
             <div className="text-xs uppercase tracking-wider text-stone-500">Menunggu</div>
           </div>
         )}
@@ -116,7 +116,7 @@ export default function KepalaDashboard({ mode = "pending" }) {
                 <Button variant="ghost" size="sm" onClick={() => openPdf(r.id)}>
                   <FileText className="w-4 h-4 mr-1" /> Lihat PDF
                 </Button>
-                {r.status === "menunggu" && mode === "pending" && (
+                {r.status === "menunggu_kepala" && mode === "pending" && (
                   <Button
                     data-testid={`process-btn-${r.id}`}
                     className="bg-[#1A4331] hover:bg-[#133224]"
