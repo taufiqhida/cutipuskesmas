@@ -844,6 +844,23 @@ async def admin_check_form_no(form_no: str, user=Depends(require_role("admin")))
 
 
 # ---------------- Public verification ----------------
+@api.get("/public/surat-dokter/{token}")
+async def public_surat_dokter(token: str):
+    """Public endpoint untuk melihat surat dokter via link (dari PDF/sistem)."""
+    row = await db.leave_requests.find_one({"verify_token": token}, {"_id": 0})
+    if not row:
+        raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
+    if not row.get("surat_dokter_base64"):
+        raise HTTPException(status_code=404, detail="Surat dokter tidak tersedia")
+    return {
+        "form_no": row.get("form_no") or "",
+        "pegawai_name": row.get("user_name"),
+        "tanggal_mulai": row.get("tanggal_mulai"),
+        "tanggal_selesai": row.get("tanggal_selesai"),
+        "surat_dokter_base64": row["surat_dokter_base64"],
+    }
+
+
 @api.get("/verify/{token}")
 async def verify_leave(token: str):
     row = await db.leave_requests.find_one({"verify_token": token}, {"_id": 0})
@@ -1037,7 +1054,11 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
     story.append(Paragraph("<b>III. ALASAN CUTI</b>", body))
     story.append(Paragraph(row["alasan"], body))
     if row.get("jenis_cuti") == "cuti_sakit" and row.get("surat_dokter_base64"):
-        story.append(Paragraph("<i>Lampiran: Surat Keterangan Dokter (terlampir dalam sistem)</i>", small))
+        sd_url = f"{frontend_url}/surat-dokter/{row['verify_token']}" if frontend_url else row["verify_token"]
+        story.append(Paragraph(
+            f'<i>Lampiran: </i><link href="{sd_url}" color="blue"><u>📎 Lihat Surat Keterangan Dokter</u></link>',
+            body
+        ))
     story.append(Spacer(1, 4))
 
     # Lama

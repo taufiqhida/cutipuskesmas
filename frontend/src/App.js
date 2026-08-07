@@ -13,6 +13,7 @@ import PegawaiDashboard from "@/pages/PegawaiDashboard";
 import AjukanCutiPage from "@/pages/AjukanCutiPage";
 import ProfilePage from "@/pages/ProfilePage";
 import VerifyPage from "@/pages/VerifyPage";
+import SuratDokterPage from "@/pages/SuratDokterPage";
 import "@/App.css";
 
 function RoleRedirect() {
@@ -32,6 +33,7 @@ function App() {
           <Route path="/" element={<RoleRedirect />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/verify/:token" element={<VerifyPage />} />
+          <Route path="/surat-dokter/:token" element={<SuratDokterPage />} />
 
           <Route
             path="/admin"

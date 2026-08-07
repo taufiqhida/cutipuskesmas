@@ -96,14 +96,13 @@ function ActionDialog({ open, onOpenChange, request, onDone }) {
                 <div className="col-span-2 pt-2 border-t border-stone-200">
                   <span className="text-stone-500">Surat Dokter:</span>{" "}
                   {request.surat_dokter_base64 ? (
-                    <Button variant="outline" size="sm" className="ml-2" onClick={() => {
-                      const w = window.open("", "_blank");
-                      if (request.surat_dokter_base64.startsWith("data:image")) {
-                        w.document.write(`<img src="${request.surat_dokter_base64}" style="max-width:100%"/>`);
-                      } else {
-                        w.location.href = request.surat_dokter_base64;
-                      }
-                    }} data-testid="view-surat-dokter-btn">📎 Lihat Lampiran</Button>
+                    <a
+                      href={`/surat-dokter/${request.verify_token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 ml-2 text-[#1A4331] font-semibold hover:underline"
+                      data-testid="view-surat-dokter-btn"
+                    >📎 Lihat Lampiran</a>
                   ) : <span className="text-rose-600">Tidak dilampirkan</span>}
                 </div>
               )}
@@ -185,6 +184,9 @@ function RequestRow({ r, onAction, onDelete, onHistory, openPdf, showDelete = tr
         <Button variant="ghost" size="sm" onClick={() => onHistory(r)} title="Histori"><HistoryIcon className="w-4 h-4" /></Button>
         {r.form_no && (
           <Button variant="ghost" size="sm" onClick={() => openPdf(r.id)} title="PDF"><FileText className="w-4 h-4" /></Button>
+        )}
+        {r.jenis_cuti === "cuti_sakit" && r.surat_dokter_base64 && (
+          <a href={`/surat-dokter/${r.verify_token}`} target="_blank" rel="noopener noreferrer" title="Surat Dokter" className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-stone-100 text-[#1A4331]">📎</a>
         )}
         {onAction && r.status === "menunggu_admin" && (
           <Button variant="default" size="sm" className="bg-[#1A4331] hover:bg-[#133224] ml-1" onClick={() => onAction(r)} data-testid={`process-btn-${r.id}`}>Proses</Button>

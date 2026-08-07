@@ -144,6 +144,11 @@ export default function PegawaiDashboard() {
                     {!r.catatan_admin && !r.pesan_kepala && "—"}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
+                    {r.jenis_cuti === "cuti_sakit" && r.surat_dokter_base64 && (
+                      <a href={`/surat-dokter/${r.verify_token}`} target="_blank" rel="noopener noreferrer" title="Lihat surat dokter" className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-stone-100 text-[#1A4331]" data-testid={`surat-dokter-link-${r.id}`}>
+                        📎
+                      </a>
+                    )}
                     {(r.status === "menunggu_admin" || r.status === "revisi") && (
                       <>
                         <Button variant="ghost" size="sm" onClick={() => setEditing(r)} data-testid={`edit-request-${r.id}`} title="Edit pengajuan">

@@ -113,9 +113,16 @@ export default function KepalaDashboard({ mode = "pending" }) {
                 </div>
               )}
               <div className="flex justify-between items-center pt-3 border-t border-stone-200">
-                <Button variant="ghost" size="sm" onClick={() => openPdf(r.id)}>
-                  <FileText className="w-4 h-4 mr-1" /> Lihat PDF
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => openPdf(r.id)}>
+                    <FileText className="w-4 h-4 mr-1" /> Lihat PDF
+                  </Button>
+                  {r.jenis_cuti === "cuti_sakit" && r.surat_dokter_base64 && (
+                    <a href={`/surat-dokter/${r.verify_token}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1A4331] font-semibold hover:underline inline-flex items-center gap-1" data-testid={`kepala-surat-${r.id}`}>
+                      📎 Surat Dokter
+                    </a>
+                  )}
+                </div>
                 {r.status === "menunggu_kepala" && mode === "pending" && (
                   <Button
                     data-testid={`process-btn-${r.id}`}
