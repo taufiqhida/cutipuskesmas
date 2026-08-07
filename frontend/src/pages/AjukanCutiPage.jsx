@@ -16,8 +16,8 @@ export default function AjukanCutiPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [jenis, setJenis] = useState("cuti_tahunan");
-  const [formNo, setFormNo] = useState("");
   const [alasan, setAlasan] = useState("");
+  const [suratDokter, setSuratDokter] = useState(null);
   const [tanggalMulai, setTanggalMulai] = useState("");
   const [tanggalSelesai, setTanggalSelesai] = useState("");
   const [alamat, setAlamat] = useState(user?.alamat || "");
@@ -32,6 +32,10 @@ export default function AjukanCutiPage() {
       toast.error("Tanggal cuti tidak valid");
       return;
     }
+    if (jenis === "cuti_sakit" && !suratDokter) {
+      toast.error("Surat keterangan dokter wajib dilampirkan untuk cuti sakit");
+      return;
+    }
     setBusy(true);
     try {
       await api.post("/leave-requests", {
@@ -41,6 +45,7 @@ export default function AjukanCutiPage() {
         tanggal_selesai: tanggalSelesai,
         alamat_selama_cuti: alamat,
         telepon_selama_cuti: telepon,
+        surat_dokter_base64: jenis === "cuti_sakit" ? suratDokter : null,
       });
       toast.success("Pengajuan cuti berhasil dikirim");
       navigate("/pegawai");
@@ -102,7 +107,7 @@ export default function AjukanCutiPage() {
 
         <Card className="border-stone-200">
           <CardHeader><CardTitle className="font-heading text-lg">III. Alasan Cuti</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Textarea
               data-testid="input-alasan"
               required rows={3}
@@ -110,6 +115,43 @@ export default function AjukanCutiPage() {
               onChange={(e) => setAlasan(e.target.value)}
               placeholder="Jelaskan alasan cuti dengan ringkas dan jelas..."
             />
+            {jenis === "cuti_sakit" && (
+              <div className="space-y-2 pt-2 border-t border-stone-200">
+                <Label>Surat Keterangan Dokter <span className="text-rose-500">*wajib</span></Label>
+                <div className="border-2 border-dashed border-stone-300 rounded-lg p-4 text-center">
+                  {suratDokter ? (
+                    suratDokter.startsWith("data:image") ? (
+                      <img src={suratDokter} alt="Surat Dokter" className="max-h-40 mx-auto rounded" />
+                    ) : (
+                      <div className="text-sm text-emerald-700">✓ File terlampir ({Math.round(suratDokter.length / 1024)} KB)</div>
+                    )
+                  ) : (
+                    <div className="text-stone-400 text-sm">Belum ada surat dokter</div>
+                  )}
+                  <label className="mt-3 inline-flex items-center gap-2 cursor-pointer text-[#1A4331] font-medium text-sm">
+                    <span className="border border-[#1A4331] rounded px-3 py-1.5 hover:bg-[#EAF4F0]">📎 {suratDokter ? "Ganti File" : "Pilih File"}</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(ev) => {
+                        const file = ev.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) { toast.error("Ukuran file maks 5 MB"); return; }
+                        const reader = new FileReader();
+                        reader.onload = () => setSuratDokter(reader.result);
+                        reader.readAsDataURL(file);
+                      }}
+                      data-testid="input-surat-dokter"
+                    />
+                  </label>
+                  {suratDokter && (
+                    <button type="button" className="ml-2 text-xs text-rose-600 hover:underline" onClick={() => setSuratDokter(null)}>Hapus</button>
+                  )}
+                </div>
+                <p className="text-xs text-stone-500">Upload gambar (JPG/PNG) atau PDF surat dokter, max 5 MB.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

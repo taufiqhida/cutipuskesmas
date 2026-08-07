@@ -21,7 +21,7 @@ const EMPTY = {
   jabatan: "", masa_kerja_tahun: 0, masa_kerja_bulan: 0,
   unit_kerja: "UPTD Puskesmas Bugangan", alamat: "", telepon: "", role: "pegawai",
   signature_base64: null,
-  balances: { cuti_tahunan: 12, cuti_besar: 0, cuti_sakit: 12, cuti_melahirkan: 90, cuti_alasan_penting: 30, cuti_luar_tanggungan: 0 },
+  balances: { cuti_tahunan: 12, cuti_besar: 0, cuti_sakit_per_bulan: 3, cuti_melahirkan: 90, cuti_alasan_penting: 30, cuti_luar_tanggungan: 0 },
 };
 
 function UserDialog({ open, onOpenChange, initial, onSave }) {
@@ -135,15 +135,15 @@ function UserDialog({ open, onOpenChange, initial, onSave }) {
             <p className="text-sm text-stone-600">Atur saldo cuti awal pegawai. Saldo otomatis berkurang ketika cuti disetujui Kepala.</p>
             <div className="grid grid-cols-2 gap-4">
               {Object.entries({
-                cuti_tahunan: "Cuti Tahunan",
-                cuti_besar: "Cuti Besar",
-                cuti_sakit: "Cuti Sakit",
-                cuti_melahirkan: "Cuti Melahirkan",
-                cuti_alasan_penting: "Cuti Karena Alasan Penting",
-                cuti_luar_tanggungan: "Cuti di Luar Tanggungan Negara",
+                cuti_tahunan: "Cuti Tahunan (hari/tahun)",
+                cuti_besar: "Cuti Besar (hari)",
+                cuti_sakit_per_bulan: "Cuti Sakit (kali/bulan)",
+                cuti_melahirkan: "Cuti Melahirkan (hari)",
+                cuti_alasan_penting: "Cuti Karena Alasan Penting (hari)",
+                cuti_luar_tanggungan: "Cuti di Luar Tanggungan Negara (hari)",
               }).map(([k, lbl]) => (
                 <div key={k} className="space-y-2">
-                  <Label>{lbl} (hari)</Label>
+                  <Label>{lbl}</Label>
                   <Input
                     data-testid={`input-saldo-${k}`}
                     type="number" min="0"

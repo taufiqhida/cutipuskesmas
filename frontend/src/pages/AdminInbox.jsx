@@ -92,6 +92,21 @@ function ActionDialog({ open, onOpenChange, request, onDone }) {
               <div><span className="text-stone-500">Lama:</span> {request.lamanya} hari</div>
               <div className="col-span-2"><span className="text-stone-500">Periode:</span> {formatTanggalID(request.tanggal_mulai)} – {formatTanggalID(request.tanggal_selesai)}</div>
               <div className="col-span-2"><span className="text-stone-500">Alasan:</span> {request.alasan}</div>
+              {request.jenis_cuti === "cuti_sakit" && (
+                <div className="col-span-2 pt-2 border-t border-stone-200">
+                  <span className="text-stone-500">Surat Dokter:</span>{" "}
+                  {request.surat_dokter_base64 ? (
+                    <Button variant="outline" size="sm" className="ml-2" onClick={() => {
+                      const w = window.open("", "_blank");
+                      if (request.surat_dokter_base64.startsWith("data:image")) {
+                        w.document.write(`<img src="${request.surat_dokter_base64}" style="max-width:100%"/>`);
+                      } else {
+                        w.location.href = request.surat_dokter_base64;
+                      }
+                    }} data-testid="view-surat-dokter-btn">📎 Lihat Lampiran</Button>
+                  ) : <span className="text-rose-600">Tidak dilampirkan</span>}
+                </div>
+              )}
             </div>
           </div>
 

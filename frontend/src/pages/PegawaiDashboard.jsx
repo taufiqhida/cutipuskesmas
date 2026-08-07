@@ -14,7 +14,7 @@ import { FileText, Plus, CalendarDays, Wallet, Pencil, Trash2 } from "lucide-rea
 const BALANCE_LABELS = {
   cuti_tahunan: "Cuti Tahunan",
   cuti_besar: "Cuti Besar",
-  cuti_sakit: "Cuti Sakit",
+  cuti_sakit_per_bulan: "Cuti Sakit (per bulan)",
   cuti_melahirkan: "Cuti Melahirkan",
   cuti_alasan_penting: "Cuti Alasan Penting",
   cuti_luar_tanggungan: "Cuti Luar Tanggungan Negara",
@@ -105,8 +105,8 @@ export default function PegawaiDashboard() {
             {Object.entries(BALANCE_LABELS).map(([k, lbl]) => (
               <div key={k} className="border border-stone-200 rounded-md p-4">
                 <div className="text-[10px] uppercase tracking-wider text-stone-500">{lbl}</div>
-                <div className="font-heading text-2xl font-black mt-1">{balances[k] ?? 0}</div>
-                <div className="text-[10px] text-stone-500">hari</div>
+                <div className="font-heading text-2xl font-black mt-1">{balances[k] ?? (k === "cuti_sakit_per_bulan" ? 3 : 0)}</div>
+                <div className="text-[10px] text-stone-500">{k === "cuti_sakit_per_bulan" ? "kali/bulan" : "hari"}</div>
               </div>
             ))}
           </div>

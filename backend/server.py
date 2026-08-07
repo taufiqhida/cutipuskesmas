@@ -51,10 +51,10 @@ LEAVE_TYPES = (
     "cuti_luar_tanggungan",
 )
 # cuti_besar tracked as balance only (rarely used as type but exists)
+# cuti_sakit tidak dikurangi dari saldo (unlimited hari tapi dibatasi per bulan)
 BALANCE_TYPES = (
     "cuti_tahunan",
     "cuti_besar",
-    "cuti_sakit",
     "cuti_melahirkan",
     "cuti_alasan_penting",
     "cuti_luar_tanggungan",
@@ -129,7 +129,8 @@ class LoginIn(BaseModel):
 class UserBalances(BaseModel):
     cuti_tahunan: int = 12
     cuti_besar: int = 0
-    cuti_sakit: int = 12
+    # cuti_sakit tidak pakai kuota tahunan; ganti dengan batas per bulan
+    cuti_sakit_per_bulan: int = 3
     cuti_melahirkan: int = 90
     cuti_alasan_penting: int = 30
     cuti_luar_tanggungan: int = 0
@@ -171,7 +172,6 @@ class UserUpdate(BaseModel):
 
 
 class LeaveRequestCreate(BaseModel):
-    # form_no DIHAPUS — sekarang admin yang menetapkan
     jenis_cuti: Literal[
         "cuti_tahunan", "cuti_bersama", "cuti_sakit",
         "cuti_melahirkan", "cuti_alasan_penting", "cuti_luar_tanggungan",
@@ -181,6 +181,7 @@ class LeaveRequestCreate(BaseModel):
     tanggal_selesai: str
     alamat_selama_cuti: str
     telepon_selama_cuti: str
+    surat_dokter_base64: Optional[str] = None  # WAJIB untuk cuti_sakit (data URL image/pdf)
 
 
 class AdminActionIn(BaseModel):
@@ -209,9 +210,29 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.leave_requests.create_index("id", unique=True)
-    await db.leave_requests.create_index("form_no", unique=True)
+    # Drop index lama kalau ada (yang tidak partial), lalu buat partial index
+    try:
+        await db.leave_requests.drop_index("form_no_1")
+    except Exception:
+        pass
+    await db.leave_requests.create_index(
+        "form_no",
+        unique=True,
+        partialFilterExpression={"form_no": {"$gt": ""}},
+    )
     await db.leave_requests.create_index("user_id")
     await db.leave_requests.create_index("status")
+
+    # Migrasi: pastikan semua user punya cuti_sakit_per_bulan
+    await db.users.update_many(
+        {"balances.cuti_sakit_per_bulan": {"$exists": False}},
+        {"$set": {"balances.cuti_sakit_per_bulan": 3}},
+    )
+    # Migrasi: hapus field cuti_sakit lama (tidak dipakai lagi sebagai saldo)
+    await db.users.update_many(
+        {"balances.cuti_sakit": {"$exists": True}},
+        {"$unset": {"balances.cuti_sakit": ""}},
+    )
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
@@ -465,20 +486,42 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
 
     days = _calc_days(body.tanggal_mulai, body.tanggal_selesai)
 
-    # Check balance (saldo dicek tapi belum dipotong; dipotong saat kepala disetujui)
-    balance_key = body.jenis_cuti if body.jenis_cuti != "cuti_bersama" else "cuti_tahunan"
-    if balance_key in BALANCE_TYPES:
-        current_balance = (user.get("balances") or {}).get(balance_key, 0)
-        if current_balance < days:
+    # Cek surat dokter wajib untuk cuti sakit
+    if body.jenis_cuti == "cuti_sakit":
+        if not body.surat_dokter_base64:
+            raise HTTPException(status_code=400, detail="Surat keterangan dokter wajib dilampirkan untuk cuti sakit")
+        # Cek batas per bulan
+        month = datetime.fromisoformat(body.tanggal_mulai).month
+        year = datetime.fromisoformat(body.tanggal_mulai).year
+        month_start = f"{year:04d}-{month:02d}-01"
+        next_month = f"{year:04d}-{month+1:02d}-01" if month < 12 else f"{year+1:04d}-01-01"
+        used_this_month = await db.leave_requests.count_documents({
+            "user_id": user["id"],
+            "jenis_cuti": "cuti_sakit",
+            "tanggal_mulai": {"$gte": month_start, "$lt": next_month},
+            "status": {"$nin": ["dihapus", "ditolak_admin", "tidak_disetujui"]},
+        })
+        limit = (user.get("balances") or {}).get("cuti_sakit_per_bulan", 3)
+        if used_this_month >= limit:
             raise HTTPException(
                 status_code=400,
-                detail=f"Sisa {LEAVE_TYPE_LABELS[balance_key]} tidak mencukupi (sisa {current_balance} hari, butuh {days} hari)",
+                detail=f"Batas cuti sakit bulan ini sudah tercapai ({used_this_month}/{limit} kali). Hubungi admin jika perlu.",
             )
+    else:
+        # Cek saldo cuti untuk jenis selain sakit
+        balance_key = body.jenis_cuti if body.jenis_cuti != "cuti_bersama" else "cuti_tahunan"
+        if balance_key in BALANCE_TYPES:
+            current_balance = (user.get("balances") or {}).get(balance_key, 0)
+            if current_balance < days:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Sisa {LEAVE_TYPE_LABELS[balance_key]} tidak mencukupi (sisa {current_balance} hari, butuh {days} hari)",
+                )
 
     now_iso = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": str(uuid.uuid4()),
-        "form_no": "",  # diisi admin nanti
+        "form_no": "",
         "year": datetime.now(timezone.utc).year,
         "user_id": user["id"],
         "user_name": user["name"],
@@ -489,10 +532,11 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
         "lamanya": days,
         "alamat_selama_cuti": body.alamat_selama_cuti,
         "telepon_selama_cuti": body.telepon_selama_cuti,
-        "status": "menunggu_admin",  # alur baru: pegawai → admin → kepala
+        "surat_dokter_base64": body.surat_dokter_base64 or None,
+        "status": "menunggu_admin",
         "catatan_admin": "",
         "pesan_kepala": "",
-        "balance_deducted": False,  # flag untuk refund
+        "balance_deducted": False,
         "admin_reviewed_by": None,
         "admin_reviewed_at": None,
         "approved_by": None,
@@ -510,6 +554,18 @@ async def create_leave_request(body: LeaveRequestCreate, user=Depends(get_curren
     await db.leave_requests.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+@api.get("/leave-requests/{req_id}/surat-dokter")
+async def get_surat_dokter(req_id: str, user=Depends(get_current_user)):
+    row = await db.leave_requests.find_one({"id": req_id}, {"_id": 0})
+    if not row:
+        raise HTTPException(status_code=404, detail="Pengajuan tidak ditemukan")
+    if user["role"] == "pegawai" and row["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Akses ditolak")
+    if not row.get("surat_dokter_base64"):
+        raise HTTPException(status_code=404, detail="Surat dokter tidak tersedia")
+    return {"surat_dokter_base64": row["surat_dokter_base64"]}
 
 
 @api.get("/leave-requests")
@@ -572,6 +628,7 @@ class LeaveRequestUpdate(BaseModel):
     tanggal_selesai: Optional[str] = None
     alamat_selama_cuti: Optional[str] = None
     telepon_selama_cuti: Optional[str] = None
+    surat_dokter_base64: Optional[str] = None
 
 
 @api.put("/leave-requests/{req_id}")
@@ -979,6 +1036,8 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
     # Alasan
     story.append(Paragraph("<b>III. ALASAN CUTI</b>", body))
     story.append(Paragraph(row["alasan"], body))
+    if row.get("jenis_cuti") == "cuti_sakit" and row.get("surat_dokter_base64"):
+        story.append(Paragraph("<i>Lampiran: Surat Keterangan Dokter (terlampir dalam sistem)</i>", small))
     story.append(Spacer(1, 4))
 
     # Lama
@@ -988,13 +1047,13 @@ async def export_pdf(req_id: str, token: Optional[str] = None, credentials: Opti
         body))
     story.append(Spacer(1, 4))
 
-    # Catatan cuti (balances)
+    # Catatan cuti (balances) — cuti sakit ganti dengan batas per bulan
     story.append(Paragraph("<b>V. CATATAN CUTI</b>", body))
     bal = (pegawai or {}).get("balances", {}) if pegawai else {}
     cat = [
         ["Cuti Tahunan", str(bal.get("cuti_tahunan", 0)), "Cuti Melahirkan", str(bal.get("cuti_melahirkan", 0))],
         ["Cuti Besar", str(bal.get("cuti_besar", 0)), "Cuti Karena Alasan Penting", str(bal.get("cuti_alasan_penting", 0))],
-        ["Cuti Sakit", str(bal.get("cuti_sakit", 0)), "Cuti di Luar Tanggungan Negara", str(bal.get("cuti_luar_tanggungan", 0))],
+        ["Cuti Sakit (per bulan)", f"{bal.get('cuti_sakit_per_bulan', 3)}x", "Cuti di Luar Tanggungan Negara", str(bal.get("cuti_luar_tanggungan", 0))],
     ]
     t3 = Table([["Jenis Cuti", "Sisa", "Jenis Cuti", "Sisa"]] + cat, colWidths=[5.5*cm, 2*cm, 7.5*cm, 2*cm])
     t3.setStyle(TableStyle([
